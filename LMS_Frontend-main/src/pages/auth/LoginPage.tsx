@@ -267,9 +267,9 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <span>
-            Skill
+           Xeno
             <span className="text-indigo-600">
-              ora
+              verse
             </span>
           </span>
         </Link>
@@ -360,7 +360,7 @@ export const LoginPage: React.FC = () => {
 
             <p className="text-xs leading-5 text-slate-500">
               Your Google account is used to securely
-              identify your Skillora student account.
+              identify your Xenoverse student account.
             </p>
 
           </div>

@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-md shadow-indigo-100">
             <Sparkles className="h-5 w-5" />
           </div>
-          <span>Skill<span className="text-indigo-600">ora</span></span>
+          <span>Xenoverse</span>
         </NavLink>
         {onClose && (
           <button

@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
         role: "student",
-        bio: "Learning on Skillora with a connected FastAPI backend.",
+        bio: "Learning on Xenoverse with a connected FastAPI backend.",
         createdAt: new Date().toISOString().split("T")[0],
       };
 
@@ -132,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
         role: "student",
-        bio: "Newly registered student on Skillora.",
+        bio: "Newly registered student on Xenoverse.",
         createdAt: new Date().toISOString().split("T")[0],
       };
 
