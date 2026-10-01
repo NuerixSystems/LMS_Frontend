@@ -266,12 +266,7 @@ export const LoginPage: React.FC = () => {
             <Sparkles className="h-6 w-6" />
           </div>
 
-          <span>
-           Xeno
-            <span className="text-indigo-600">
-              verse
-            </span>
-          </span>
+          <span>coursebox</span>
         </Link>
 
         <h2 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
@@ -360,7 +355,7 @@ export const LoginPage: React.FC = () => {
 
             <p className="text-xs leading-5 text-slate-500">
               Your Google account is used to securely
-              identify your Xenoverse student account.
+              identify your coursebox student account.
             </p>
 
           </div>

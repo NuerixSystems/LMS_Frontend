@@ -24,7 +24,7 @@ export const HomePage: React.FC = () => {
       <header className="border-b border-slate-200 bg-white/90">
         <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
           <Link to="/" className="flex flex-col leading-tight text-[#123b7a]">
-            <span className="font-serif text-xl font-semibold">Xenoverse</span>
+            <span className="font-serif text-xl font-semibold">coursebox</span>
             <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#2f6fed]">Learn. Build. Grow.</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -63,7 +63,7 @@ export const HomePage: React.FC = () => {
             Turn curiosity into real-world skills.
           </h1>
           <p className="mt-4 max-w-lg text-sm leading-6 text-white/75 sm:text-base">
-            Discover focused courses, follow clear lessons, and practice new ideas at your own pace. Whether you are starting from scratch or sharpening what you already know, Xenoverse helps turn each next step into momentum.
+            Discover focused courses, follow clear lessons, and practice new ideas at your own pace. Whether you are starting from scratch or sharpening what you already know, coursebox helps turn each next step into momentum.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link
