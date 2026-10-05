@@ -1,22 +1,51 @@
-﻿import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Sparkles, ArrowRight } from "lucide-react";
 import {
   GoogleLogin,
-  CredentialResponse,
+  type CredentialResponse,
 } from "@react-oauth/google";
 import { useAuth } from "../../context/AuthContext";
 import type { User } from "../../types";
 
-const getGoogleProfile = (credential: string): Record<string, unknown> => {
-  const payload = credential.split(".")[1];
-  if (!payload) return {};
-
+/**
+ * Decode the Google credential JWT payload.
+ * This is only used to read basic profile information returned by Google.
+ */
+const getGoogleProfile = (
+  credential: string
+): Record<string, unknown> => {
   try {
-    const binary = window.atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
-  } catch {
+    const parts = credential.split(".");
+
+    if (parts.length < 2) {
+      return {};
+    }
+
+    const payload = parts[1];
+
+    const normalizedPayload = payload
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    const paddedPayload =
+      normalizedPayload +
+      "=".repeat(
+        (4 - (normalizedPayload.length % 4)) % 4
+      );
+
+    const binary = window.atob(paddedPayload);
+
+    const bytes = Uint8Array.from(binary, (character) =>
+      character.charCodeAt(0)
+    );
+
+    return JSON.parse(
+      new TextDecoder().decode(bytes)
+    ) as Record<string, unknown>;
+  } catch (error) {
+    console.error(
+      "Unable to decode Google credential:",
+      error
+    );
+
     return {};
   }
 };
@@ -28,17 +57,30 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const API_URL =
+  /**
+   * Production:
+   * VITE_API_URL=https://your-backend-domain.com
+   *
+   * Local:
+   * VITE_API_URL=http://127.0.0.1:8000
+   */
+  const API_URL = (
     import.meta.env.VITE_API_URL ||
-    "http://127.0.0.1:8000";
+    "http://127.0.0.1:8000"
+  ).replace(/\/+$/, "");
 
-  // =====================================================
-  // GOOGLE LOGIN
-  // =====================================================
-
+  /**
+   * =========================================================
+   * GOOGLE LOGIN
+   * =========================================================
+   */
   const handleGoogleLogin = async (
     credentialResponse: CredentialResponse
   ) => {
+    if (isLoading) {
+      return;
+    }
+
     if (!credentialResponse.credential) {
       setError(
         "Google authentication failed. Please try again."
@@ -50,32 +92,19 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // =================================================
-      // IMPORTANT:
-      // LMS Google login endpoint
-      //
-      // main.py:
-      // prefix="/api/lms"
-      //
-      // auth.py:
-      // prefix="/auth"
-      //
-      // @router.post("/google")
-      //
-      // Final URL:
-      // /api/lms/auth/google
-      // =================================================
-
+      /**
+       * Backend endpoint:
+       *
+       * /api/lms/auth/google
+       */
       const response = await fetch(
         `${API_URL}/api/lms/auth/google`,
         {
           method: "POST",
-
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-
           body: JSON.stringify({
             credential:
               credentialResponse.credential,
@@ -83,17 +112,20 @@ export const LoginPage: React.FC = () => {
         }
       );
 
-      // =================================================
-      // READ RESPONSE
-      // =================================================
-
+      /**
+       * =====================================================
+       * READ RESPONSE SAFELY
+       * =====================================================
+       */
       let data: any = {};
 
       const contentType =
         response.headers.get("content-type") || "";
 
       if (
-        contentType.includes("application/json")
+        contentType
+          .toLowerCase()
+          .includes("application/json")
       ) {
         try {
           data = await response.json();
@@ -114,10 +146,11 @@ export const LoginPage: React.FC = () => {
         data
       );
 
-      // =================================================
-      // HANDLE API ERROR
-      // =================================================
-
+      /**
+       * =====================================================
+       * API ERROR
+       * =====================================================
+       */
       if (!response.ok) {
         throw new Error(
           data?.detail ||
@@ -126,10 +159,11 @@ export const LoginPage: React.FC = () => {
         );
       }
 
-      // =================================================
-      // ACCESS TOKEN
-      // =================================================
-
+      /**
+       * =====================================================
+       * ACCESS TOKEN
+       * =====================================================
+       */
       const accessToken =
         data?.access_token;
 
@@ -139,50 +173,111 @@ export const LoginPage: React.FC = () => {
         );
       }
 
-      const profile = data?.student || getGoogleProfile(credentialResponse.credential);
-      const email = typeof profile.email === "string" ? profile.email : "";
+      /**
+       * =====================================================
+       * GOOGLE PROFILE
+       * =====================================================
+       *
+       * Prefer the student object returned by the backend.
+       * Otherwise decode the Google credential.
+       */
+      const profile =
+        data?.student ||
+        getGoogleProfile(
+          credentialResponse.credential
+        );
+
+      const email =
+        typeof profile.email === "string"
+          ? profile.email
+          : "";
+
       if (!email) {
-        throw new Error("Google login succeeded, but no student email was returned.");
+        throw new Error(
+          "Google login succeeded, but no student email was returned."
+        );
       }
 
+      /**
+       * =====================================================
+       * CREATE FRONTEND USER
+       * =====================================================
+       */
       const googleUser: User = {
-        id: String(profile.id ?? profile.sub ?? email),
+        id: String(
+          profile.id ??
+            profile.sub ??
+            email
+        ),
+
         name:
-          (typeof profile.name === "string" && profile.name) ||
-          (typeof profile.username === "string" && profile.username) ||
-          email.split("@")[0],
+          typeof profile.name === "string" &&
+          profile.name.trim()
+            ? profile.name
+            : typeof profile.username ===
+                "string" &&
+              profile.username.trim()
+            ? profile.username
+            : email.split("@")[0],
+
         email,
+
         avatar:
-          (typeof profile.avatar === "string" && profile.avatar) ||
-          (typeof profile.picture === "string" && profile.picture) ||
-          undefined,
+          typeof profile.avatar === "string" &&
+          profile.avatar
+            ? profile.avatar
+            : typeof profile.picture ===
+                "string" &&
+              profile.picture
+            ? profile.picture
+            : undefined,
+
         role: "student",
+
         createdAt:
-          (typeof profile.created_at === "string" && profile.created_at) ||
-          new Date().toISOString().slice(0, 10),
+          typeof profile.created_at ===
+            "string" &&
+          profile.created_at
+            ? profile.created_at
+            : new Date()
+                .toISOString()
+                .slice(0, 10),
       };
 
-      completeGoogleLogin(googleUser, accessToken);
+      /**
+       * =====================================================
+       * SAVE AUTH STATE
+       * =====================================================
+       */
+      completeGoogleLogin(
+        googleUser,
+        accessToken
+      );
 
-      // =================================================
-      // SAVE LMS TOKEN
-      // =================================================
+      /**
+       * =====================================================
+       * SAVE LMS TOKEN INFORMATION
+       * =====================================================
+       */
+      localStorage.setItem(
+        "access_token",
+        accessToken
+      );
 
       localStorage.setItem(
         "token_type",
         data?.token_type || "bearer"
       );
 
-      // =================================================
-      // SAVE STUDENT
-      // =================================================
-
-      localStorage.setItem("student", JSON.stringify(profile));
-
-      // =================================================
-      // OPTIONAL:
-      // Save a separate LMS login marker
-      // =================================================
+      /**
+       * =====================================================
+       * SAVE STUDENT PROFILE
+       * =====================================================
+       */
+      localStorage.setItem(
+        "student",
+        JSON.stringify(profile)
+      );
 
       localStorage.setItem(
         "user_type",
@@ -194,21 +289,25 @@ export const LoginPage: React.FC = () => {
         "true"
       );
 
-      // =================================================
-      // LOGIN SUCCESS
-      // =================================================
-
-      navigate("/dashboard", { replace: true });
-    } catch (err: any) {
+      /**
+       * =====================================================
+       * LOGIN SUCCESS
+       * =====================================================
+       */
+      navigate("/dashboard", {
+        replace: true,
+      });
+    } catch (err: unknown) {
       console.error(
         "LMS Google login error:",
         err
       );
 
-      // =================================================
-      // NETWORK ERROR
-      // =================================================
-
+      /**
+       * =====================================================
+       * NETWORK ERROR
+       * =====================================================
+       */
       if (
         err instanceof TypeError &&
         err.message
@@ -216,12 +315,13 @@ export const LoginPage: React.FC = () => {
           .includes("fetch")
       ) {
         setError(
-          "Unable to connect to the LMS server. Please make sure the backend is running on port 8000."
+          "Unable to connect to the LMS server. Please check the backend URL and make sure the server is running."
         );
+      } else if (err instanceof Error) {
+        setError(err.message);
       } else {
         setError(
-          err?.message ||
-            "Unable to sign in with Google. Please try again."
+          "Unable to sign in with Google. Please try again."
         );
       }
     } finally {
@@ -229,10 +329,11 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // =====================================================
-  // GOOGLE LOGIN ERROR
-  // =====================================================
-
+  /**
+   * =========================================================
+   * GOOGLE LOGIN ERROR
+   * =========================================================
+   */
   const handleGoogleError = () => {
     console.error(
       "Google Sign-In failed"
@@ -245,22 +346,18 @@ export const LoginPage: React.FC = () => {
     setIsLoading(false);
   };
 
-  // =====================================================
-  // UI
-  // =====================================================
-
+  /**
+   * =========================================================
+   * UI
+   * =========================================================
+   */
   return (
     <div className="flex min-h-screen flex-col justify-center bg-slate-50 py-12 sm:px-6 lg:px-8">
-
-      {/* =================================================
-          LOGO + HEADING
-      ================================================= */}
-
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-
+      {/* Logo + heading */}
+      <div className="text-center sm:mx-auto sm:w-full sm:max-w-md">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 font-bold text-slate-900 text-2xl"
+          className="inline-flex items-center gap-2 text-2xl font-bold text-slate-900"
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-md shadow-indigo-100">
             <Sparkles className="h-6 w-6" />
@@ -278,55 +375,42 @@ export const LoginPage: React.FC = () => {
         </p>
       </div>
 
-      {/* =================================================
-          LOGIN CARD
-      ================================================= */}
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-
+      {/* Login card */}
+      <div className="mt-8 px-4 sm:mx-auto sm:w-full sm:max-w-md sm:px-0">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-
-          {/* =================================================
-              ERROR
-          ================================================= */}
-
+          {/* Error */}
           {error && (
-            <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">
+            <div
+              role="alert"
+              className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm text-red-700"
+            >
               {error}
             </div>
           )}
 
-          {/* =================================================
-              GOOGLE LOGIN
-          ================================================= */}
-
+          {/* Google Login */}
           <div className="flex flex-col items-center">
-
             <div className="mb-6 text-center">
-
               <h3 className="text-lg font-semibold text-slate-900">
                 Sign in with Google
               </h3>
 
               <p className="mt-1 text-sm text-slate-500">
-                Use your Gmail account to access your courses
+                Use your Gmail account to access your
+                courses
               </p>
-
             </div>
 
             {isLoading ? (
               <div className="flex h-11 w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
-
                 <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600" />
 
                 <span className="text-sm font-medium text-slate-600">
                   Signing in...
                 </span>
-
               </div>
             ) : (
               <div className="flex w-full justify-center">
-
                 <GoogleLogin
                   onSuccess={
                     handleGoogleLogin
@@ -340,32 +424,22 @@ export const LoginPage: React.FC = () => {
                   shape="rectangular"
                   width="320"
                   useOneTap={false}
+                  auto_select={false}
                 />
-
               </div>
             )}
-
           </div>
 
-          {/* =================================================
-              SECURITY INFORMATION
-          ================================================= */}
-
+          {/* Security information */}
           <div className="mt-6 rounded-lg bg-slate-50 p-4 text-center">
-
             <p className="text-xs leading-5 text-slate-500">
               Your Google account is used to securely
               identify your coursebox student account.
             </p>
-
           </div>
 
-          {/* =================================================
-              REGISTER
-          ================================================= */}
-
+          {/* Register */}
           <div className="mt-6 text-center text-sm text-slate-500">
-
             Don't have an account?{" "}
 
             <Link
@@ -374,17 +448,11 @@ export const LoginPage: React.FC = () => {
             >
               Create Account
             </Link>
-
           </div>
-
         </div>
 
-        {/* =================================================
-            BACK HOME
-        ================================================= */}
-
+        {/* Back home */}
         <div className="mt-6 text-center">
-
           <Link
             to="/"
             className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-600"
@@ -393,9 +461,7 @@ export const LoginPage: React.FC = () => {
 
             <ArrowRight className="h-4 w-4" />
           </Link>
-
         </div>
-
       </div>
     </div>
   );
