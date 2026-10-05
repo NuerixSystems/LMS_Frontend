@@ -22,7 +22,7 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 // Protected Pages
 // ==============================
 import { DashboardPage } from "./pages/DashboardPage";
-import { HomePage } from "./pages/HomePage";
+
 import { CoursesPage } from "./pages/CoursesPage";
 import { CourseDetailsPage } from "./pages/CourseDetailsPage";
 import { LearningPage } from "./pages/LearningPage";
@@ -52,10 +52,10 @@ export const App: React.FC = () => {
               element={<RegisterPage />}
             />
 
-            <Route
+            {/*<Route
               path="/"
               element={<HomePage />}
-            />
+            />*/}
 
             {/* =====================================================
                 PROTECTED APPLICATION ROUTES
