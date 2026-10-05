@@ -1,330 +1,799 @@
-﻿import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+﻿import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   BookOpen,
   Clock,
-  CheckCircle2,
-  TrendingUp,
   Play,
   ArrowRight,
-  Sparkles,
-  Layers,
+  GraduationCap,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+
 import { useLMS } from "../context/LMSContext";
-import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
 import { Progress } from "../components/ui/progress";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://127.0.0.1:8000";
+
+interface BackendCourse {
+  course_id: number;
+  tenant_id?: number;
+  title: string;
+  description?: string | null;
+  thumbnail_url?: string | null;
+  price?: number | string | null;
+  status?: string;
+  total_lessons?: number;
+  contents?: BackendCourseContent[];
+}
+
+interface BackendCourseContent {
+  content_id: number;
+  course_id: number;
+  title: string;
+  description?: string | null;
+  video_url?: string | null;
+  url?: string | null;
+  sort_order?: number;
+  display_order?: number;
+  is_preview?: boolean;
+  status?: string;
+}
+
+interface CourseContentResponse extends BackendCourse {
+  contents: BackendCourseContent[];
+  total_lessons: number;
+}
+
+interface DashboardCourse {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  totalLessons: number;
+}
+
+const getAuthToken = (): string | null => {
+  const possibleKeys = [
+    "access_token",
+    "token",
+    "lms_access_token",
+    "lms_token",
+  ];
+
+  for (const key of possibleKeys) {
+    const value = localStorage.getItem(key);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const getImageUrl = (url?: string | null): string => {
+  if (!url) {
+    return "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80";
+  }
+
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+};
+
+const formatDuration = (minutes: number): string => {
+  if (!minutes || minutes <= 0) {
+    return "Self paced";
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  if (hours > 0 && mins > 0) {
+    return `${hours}h ${mins}m`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+
+  return `${mins}m`;
+};
+
 export const DashboardPage: React.FC = () => {
-  const { user } = useAuth();
   const {
     courses,
-    totalEnrolledCount,
-    inProgressCount,
-    completedCount,
-    overallProgress,
-    continueCourse,
-    getCourseProgress,
     isEnrolled,
+    getCourseProgress,
+    getEnrollment,
   } = useLMS();
 
-  const navigate = useNavigate();
+  const [backendCourses, setBackendCourses] = useState<BackendCourse[]>([]);
+  const [courseContents, setCourseContents] = useState<
+    Record<number, CourseContentResponse>
+  >({});
+  const [loading, setLoading] = useState(true);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const stats = [
-    {
-      title: "Enrolled Courses",
-      value: totalEnrolledCount,
-      icon: BookOpen,
-      iconBg: "bg-blue-50 text-blue-600",
-      change: "+1 this month",
-    },
-    {
-      title: "In Progress",
-      value: inProgressCount,
-      icon: Clock,
-      iconBg: "bg-amber-50 text-amber-600",
-      change: "Active learning",
-    },
-    {
-      title: "Completed Courses",
-      value: completedCount,
-      icon: CheckCircle2,
-      iconBg: "bg-emerald-50 text-emerald-600",
-      change: "Great achievement",
-    },
-    {
-      title: "Overall Progress",
-      value: `${overallProgress}%`,
-      icon: TrendingUp,
-      iconBg: "bg-indigo-50 text-indigo-600",
-      isProgress: true,
-    },
-  ];
+  /*
+   * ============================================================
+   * LOAD COURSES FROM LMS BACKEND
+   * ============================================================
+   */
+
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const token = getAuthToken();
+
+        const headers: HeadersInit = {
+          Accept: "application/json",
+        };
+
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        const response = await fetch(
+          `${API_BASE_URL}/api/lms/courses`,
+          {
+            method: "GET",
+            headers,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to load courses (${response.status})`
+          );
+        }
+
+        const data = await response.json();
+
+        /*
+         * Backend may return:
+         *
+         * [
+         *   {...},
+         *   {...}
+         * ]
+         *
+         * OR
+         *
+         * {
+         *   courses: [...]
+         * }
+         */
+
+        const receivedCourses: BackendCourse[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.courses)
+          ? data.courses
+          : [];
+
+        console.log(
+          "=============================================="
+        );
+        console.log("LMS DASHBOARD COURSES");
+        console.log(
+          "=============================================="
+        );
+        console.log(
+          "Total backend courses:",
+          receivedCourses.length
+        );
+
+        receivedCourses.forEach((course) => {
+          console.log(
+            `Course ${course.course_id}: ${course.title} | ${course.status}`
+          );
+        });
+
+        setBackendCourses(receivedCourses);
+      } catch (err) {
+        console.error("Dashboard course loading error:", err);
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load LMS courses."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCourses();
+  }, []);
+
+  /*
+   * ============================================================
+   * LOAD COURSE CONTENT
+   * ============================================================
+   *
+   * Important:
+   * Your lessons are stored in:
+   *
+   * lms_dev.course_links
+   *
+   * Therefore we use:
+   *
+   * GET /api/lms/courses/{course_id}/content
+   *
+   * instead of expecting a lesson table.
+   */
+
+  useEffect(() => {
+    const loadCourseContents = async () => {
+      if (!backendCourses.length) {
+        return;
+      }
+
+      try {
+        setContentLoading(true);
+
+        const token = getAuthToken();
+
+        const headers: HeadersInit = {
+          Accept: "application/json",
+        };
+
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        const contentMap: Record<
+          number,
+          CourseContentResponse
+        > = {};
+
+        for (const course of backendCourses) {
+          try {
+            const response = await fetch(
+              `${API_BASE_URL}/api/lms/courses/${course.course_id}/content`,
+              {
+                method: "GET",
+                headers,
+              }
+            );
+
+            if (!response.ok) {
+              console.warn(
+                `Unable to load content for course ${course.course_id}`
+              );
+
+              continue;
+            }
+
+            const data: CourseContentResponse =
+              await response.json();
+
+            contentMap[course.course_id] = data;
+
+            console.log(
+              `Course ${course.course_id} lessons:`,
+              data.contents?.length || 0
+            );
+          } catch (courseError) {
+            console.error(
+              `Content loading failed for course ${course.course_id}:`,
+              courseError
+            );
+          }
+        }
+
+        setCourseContents(contentMap);
+      } finally {
+        setContentLoading(false);
+      }
+    };
+
+    loadCourseContents();
+  }, [backendCourses]);
+
+  /*
+   * ============================================================
+   * BACKEND COURSE DATA → DASHBOARD DATA
+   * ============================================================
+   */
+
+  const dashboardCourses: DashboardCourse[] = useMemo(() => {
+    return backendCourses
+      .filter(
+        (course) =>
+          !course.status ||
+          course.status.toLowerCase() === "active"
+      )
+      .map((course) => {
+        const content =
+          courseContents[course.course_id];
+
+        return {
+          id: String(course.course_id),
+
+          title: course.title,
+
+          description:
+            course.description ||
+            "Explore this course and start learning.",
+
+          thumbnail: getImageUrl(
+            course.thumbnail_url
+          ),
+
+          totalLessons:
+            content?.total_lessons ??
+            content?.contents?.length ??
+            course.total_lessons ??
+            0,
+        };
+      });
+  }, [backendCourses, courseContents]);
+
+  /*
+   * ============================================================
+   * FALLBACK
+   * ============================================================
+   *
+   * If backend is temporarily unavailable, use LMS context
+   * only when it already contains courses.
+   */
+
+  const visibleCourses =
+    dashboardCourses.length > 0
+      ? dashboardCourses
+      : courses.map((course) => ({
+          id: String(course.id),
+          title: course.title,
+          description:
+            course.shortDescription ||
+            "Explore this course and start learning.",
+          thumbnail: course.thumbnail,
+          totalLessons: course.totalLessons || 0,
+        }));
+
+  /*
+   * ============================================================
+   * STATISTICS
+   * ============================================================
+   */
+
+  const enrolledCourses = visibleCourses.filter((course) =>
+    isEnrolled(course.id)
+  );
+
+  const completedCourses = enrolledCourses.filter(
+    (course) =>
+      getCourseProgress(course.id) === 100
+  );
+
+  const inProgressCourses = enrolledCourses.filter(
+    (course) => {
+      const progress = getCourseProgress(course.id);
+
+      return progress > 0 && progress < 100;
+    }
+  );
+
+  /*
+   * ============================================================
+   * CONTINUE LEARNING
+   * ============================================================
+   */
+
+  const continueCourse =
+    inProgressCourses[0] ||
+    enrolledCourses.find(
+      (course) => getCourseProgress(course.id) < 100
+    );
+
+  /*
+   * ============================================================
+   * LOADING
+   * ============================================================
+   */
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+
+          <p className="text-sm text-slate-500">
+            Loading your courses...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * ============================================================
+   * DASHBOARD
+   * ============================================================
+   */
 
   return (
     <div className="space-y-8 animate-in fade-in-50 duration-300">
-      {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-700 p-6 sm:p-8 text-white shadow-lg shadow-indigo-200/50">
-        <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-medium backdrop-blur-md mb-3 text-indigo-100">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Welcome back to LearnPulse</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-            Hello, {user?.name || "Student"}! 👋
-          </h1>
-          <p className="mt-2 text-sm sm:text-base text-indigo-100/90 leading-relaxed">
-            You are making steady progress! Continue where you left off or browse new skills to conquer.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link to="/courses">
-              <Button variant="secondary" size="md" className="bg-white text-indigo-700 hover:bg-indigo-50 font-semibold shadow">
-                Explore All Courses
-              </Button>
-            </Link>
-            <Link to="/my-learning">
-              <Button variant="outline" size="md" className="border-white/30 text-white bg-white/10 hover:bg-white/20">
-                View My Courses
-              </Button>
-            </Link>
-          </div>
-        </div>
+      {/* ======================================================
+          HEADER
+      ======================================================= */}
 
-        {/* Decorative background shapes */}
-        <div className="absolute -right-10 -bottom-10 h-64 w-64 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-        <div className="absolute right-32 -top-10 h-48 w-48 rounded-full bg-violet-400/20 blur-xl pointer-events-none" />
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+          Dashboard
+        </h1>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Continue learning and explore your LMS courses.
+        </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, i) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={i} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-                      {stat.title}
-                    </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{stat.value}</p>
-                  </div>
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${stat.iconBg}`}>
-                    <Icon className="h-6 w-6" />
-                  </div>
-                </div>
-                {stat.isProgress ? (
-                  <div className="mt-3">
-                    <Progress value={overallProgress} size="sm" />
-                  </div>
-                ) : (
-                  <p className="mt-3 text-xs text-slate-500 font-medium">{stat.change}</p>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {/* ======================================================
+          ERROR
+      ======================================================= */}
 
-      {/* Continue Learning Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      {error && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+
           <div>
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Continue Learning</h2>
-            <p className="text-xs text-slate-500">Pick up right where you left off</p>
+            <p className="text-sm font-semibold text-red-800">
+              Unable to load backend courses
+            </p>
+
+            <p className="mt-1 text-xs text-red-700">
+              {error}
+            </p>
           </div>
-          <Link
-            to="/my-learning"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-          >
-            <span>All My Learning</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+        </div>
+      )}
+
+      {/* ======================================================
+          STAT CARDS
+      ======================================================= */}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">
+                Available Courses
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {visibleCourses.length}
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-indigo-50 p-3">
+              <BookOpen className="h-5 w-5 text-indigo-600" />
+            </div>
+          </div>
         </div>
 
-        {continueCourse ? (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex flex-col md:flex-row md:items-center gap-6">
-              {/* Thumbnail with overlay icon */}
-              <div className="relative aspect-video w-full md:w-64 shrink-0 overflow-hidden rounded-xl bg-slate-100 group">
-                <img
-                  src={continueCourse.course.thumbnail}
-                  alt={continueCourse.course.title}
-                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center group-hover:bg-black/30 transition-colors">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-indigo-600 shadow-md">
-                    <Play className="h-5 w-5 fill-indigo-600 ml-0.5" />
-                  </div>
-                </div>
-                <Badge className="absolute top-2 left-2 bg-white/90 text-slate-800 backdrop-blur-sm border-none shadow-xs">
-                  {continueCourse.course.category}
-                </Badge>
-              </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">
+                Enrolled
+              </p>
 
-              {/* Course Info & Progress */}
-              <div className="flex-1 min-w-0 space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
-                    Active Course
-                  </span>
-                  <span className="text-slate-300">•</span>
-                  <span className="text-xs text-slate-500">
-                    Instructor: {continueCourse.course.instructor}
-                  </span>
-                </div>
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {enrolledCourses.length}
+              </p>
+            </div>
 
-                <h3 className="text-lg sm:text-xl font-bold text-slate-900 line-clamp-1">
-                  {continueCourse.course.title}
+            <div className="rounded-lg bg-blue-50 p-3">
+              <GraduationCap className="h-5 w-5 text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">
+                In Progress
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {inProgressCourses.length}
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-amber-50 p-3">
+              <Clock className="h-5 w-5 text-amber-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">
+                Completed
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {completedCourses.length}
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-emerald-50 p-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================
+          CONTINUE LEARNING
+      ======================================================= */}
+
+      {continueCourse && (
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Continue Learning
+              </h2>
+
+              <p className="text-xs text-slate-500">
+                Pick up where you left off.
+              </p>
+            </div>
+
+            <Link
+              to="/my-learning"
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+            >
+              My Learning
+            </Link>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
+              <img
+                src={continueCourse.thumbnail}
+                alt={continueCourse.title}
+                className="h-full min-h-[180px] w-full object-cover"
+              />
+
+              <div className="flex flex-col justify-center p-6">
+                <h3 className="text-xl font-bold text-slate-900">
+                  {continueCourse.title}
                 </h3>
 
-                <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed">
-                  {continueCourse.course.shortDescription}
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+                  {continueCourse.description}
                 </p>
 
-                {/* Progress bar */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex justify-between text-xs font-medium">
-                    <span className="text-slate-600">Course Completion</span>
-                    <span className="text-indigo-600 font-bold">
-                      {continueCourse.enrollment.progressPercentage}%
+                <div className="mt-5 max-w-xl">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-500">
+                      Your progress
+                    </span>
+
+                    <span className="text-xs font-bold text-indigo-600">
+                      {getCourseProgress(
+                        continueCourse.id
+                      )}
+                      %
                     </span>
                   </div>
-                  <Progress value={continueCourse.enrollment.progressPercentage} size="md" />
+
+                  <Progress
+                    value={getCourseProgress(
+                      continueCourse.id
+                    )}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="mt-5">
+                  <Link
+                    to={`/courses/${continueCourse.id}`}
+                  >
+                    <Button
+                      size="sm"
+                      className="gap-2 font-semibold"
+                    >
+                      <Play className="h-4 w-4 fill-current" />
+                      Continue Course
+                    </Button>
+                  </Link>
                 </div>
               </div>
-
-              {/* Action CTA */}
-              <div className="md:border-l md:border-slate-100 md:pl-6 shrink-0 flex flex-col justify-center">
-                <Button
-                  onClick={() =>
-                    navigate(
-                      `/courses/${continueCourse.course.id}/learn/${continueCourse.nextLessonId}`
-                    )
-                  }
-                  size="lg"
-                  className="w-full sm:w-auto font-semibold gap-2 shadow-sm"
-                >
-                  <Play className="h-4 w-4 fill-white" />
-                  <span>Continue Lesson</span>
-                </Button>
-                <Link
-                  to={`/courses/${continueCourse.course.id}`}
-                  className="mt-2.5 text-center text-xs font-medium text-slate-500 hover:text-slate-700"
-                >
-                  View syllabus
-                </Link>
-              </div>
             </div>
           </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
-            <Layers className="mx-auto h-10 w-10 text-slate-400" />
-            <h3 className="mt-3 text-base font-semibold text-slate-900">No courses in progress</h3>
-            <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
-              Explore our catalog and start learning in-demand skills today!
-            </p>
-            <div className="mt-4">
-              <Link to="/courses">
-                <Button size="sm">Explore Catalog</Button>
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
+        </section>
+      )}
 
-      {/* Recommended Courses Grid */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      {/* ======================================================
+          COURSES FROM BACKEND
+      ======================================================= */}
+
+      <section>
+        <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              Recommended For You
+            <h2 className="text-lg font-bold text-slate-900">
+              Available Courses
             </h2>
-            <p className="text-xs text-slate-500">Popular and highly-rated programs</p>
+
+            <p className="text-xs text-slate-500">
+              Courses available from the LMS backend.
+            </p>
           </div>
+
           <Link
             to="/courses"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+            className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
           >
-            <span>View All</span>
+            View all
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {courses.slice(0, 3).map((course) => {
-            const enrolled = isEnrolled(course.id);
-            const progress = getCourseProgress(course.id);
+        {visibleCourses.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+            <BookOpen className="mx-auto h-12 w-12 text-slate-300" />
 
-            return (
-              <div
-                key={course.id}
-                className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all duration-200"
-              >
-                <div className="relative aspect-video w-full overflow-hidden bg-slate-100">
-                  <img
-                    src={course.thumbnail}
-                    alt={course.title}
-                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <Badge className="absolute top-3 left-3 bg-white/95 text-slate-800 shadow-xs border-none backdrop-blur-xs font-semibold">
-                    {course.category}
-                  </Badge>
-                </div>
+            <h3 className="mt-4 text-base font-semibold text-slate-900">
+              No courses available
+            </h3>
 
-                <div className="flex flex-1 flex-col p-5">
-                  <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-                    <span>{course.duration}</span>
-                    <span>•</span>
-                    <span>{course.totalLessons} lessons</span>
-                    <span>•</span>
-                    <span className="font-semibold text-slate-700">{course.level}</span>
-                  </div>
+            <p className="mt-1 text-sm text-slate-500">
+              There are currently no active LMS courses.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleCourses.slice(0, 6).map((course) => {
+              const enrolled = isEnrolled(course.id);
+              const progress = getCourseProgress(
+                course.id
+              );
 
-                  <h4 className="font-bold text-slate-900 line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                    {course.title}
-                  </h4>
+              const backendCourse = backendCourses.find(
+                (item) =>
+                  String(item.course_id) === course.id
+              );
 
-                  <p className="mt-1.5 text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                    {course.shortDescription}
-                  </p>
+              const backendContent =
+                backendCourse &&
+                courseContents[
+                  backendCourse.course_id
+                ];
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
-                    <div className="flex items-center gap-2">
+              const lessonCount =
+                backendContent?.total_lessons ??
+                backendContent?.contents?.length ??
+                course.totalLessons ??
+                0;
+
+              return (
+                <div
+                  key={course.id}
+                  className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <Link
+                    to={`/courses/${course.id}`}
+                    className="block"
+                  >
+                    <div className="relative aspect-video overflow-hidden bg-slate-100">
                       <img
-                        src={course.instructorAvatar}
-                        alt={course.instructor}
-                        className="h-6 w-6 rounded-full object-cover"
+                        src={course.thumbnail}
+                        alt={course.title}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
-                      <span className="truncate font-medium">{course.instructor}</span>
-                    </div>
-                  </div>
 
-                  {enrolled && (
-                    <div className="mt-3">
-                      <Progress value={progress} size="sm" showLabel />
+                      {enrolled && (
+                        <div className="absolute right-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 shadow-sm">
+                          {progress}% complete
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </Link>
 
-                  <div className="mt-4 pt-2">
-                    <Link to={`/courses/${course.id}`} className="block">
-                      <Button
-                        variant={enrolled ? "outline" : "primary"}
-                        size="sm"
-                        className="w-full font-medium"
-                      >
-                        {enrolled ? "Continue Course" : "View Course Details"}
-                      </Button>
+                  <div className="p-5">
+                    <Link
+                      to={`/courses/${course.id}`}
+                    >
+                      <h3 className="line-clamp-1 text-base font-bold text-slate-900 group-hover:text-indigo-600">
+                        {course.title}
+                      </h3>
                     </Link>
+
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                      {course.description}
+                    </p>
+
+                    <div className="mt-4 flex items-center gap-4 text-xs text-slate-500">
+                      <div className="flex items-center gap-1.5">
+                        <BookOpen className="h-3.5 w-3.5" />
+
+                        <span>
+                          {lessonCount}{" "}
+                          {lessonCount === 1
+                            ? "lesson"
+                            : "lessons"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {enrolled && (
+                      <div className="mt-4">
+                        <Progress
+                          value={progress}
+                          size="sm"
+                          showLabel
+                        />
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex gap-2">
+                      <Link
+                        to={`/courses/${course.id}`}
+                        className="flex-1"
+                      >
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          className="w-full gap-1.5 font-semibold"
+                        >
+                          <Play className="h-3.5 w-3.5 fill-current" />
+
+                          {enrolled
+                            ? "Continue"
+                            : "View Course"}
+                        </Button>
+                      </Link>
+
+                      <Link
+                        to={`/courses/${course.id}`}
+                      >
+                        <Button
+                          variant="outline"
+                          size="sm"
+                        >
+                          Details
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ======================================================
+          CONTENT STATUS
+      ======================================================= */}
+
+      {contentLoading && (
+        <div className="flex items-center justify-center gap-2 py-3 text-xs text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+
+          Loading course lessons...
         </div>
-      </div>
+      )}
     </div>
   );
 };
+
+export default DashboardPage;

@@ -121,13 +121,21 @@ export const LearningPage: React.FC = () => {
         <div className="lg:col-span-8 space-y-5">
           {/* Responsive Video Container */}
           <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-lg">
-            <iframe
-              src={formatYouTubeEmbedUrl(currentLesson.videoUrl)}
-              title={currentLesson.title}
-              className="absolute inset-0 h-full w-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
+            {currentLesson.videoUrl ? (
+              <iframe
+                src={formatYouTubeEmbedUrl(currentLesson.videoUrl)}
+                title={currentLesson.title}
+                className="absolute inset-0 h-full w-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#173e39] px-6 text-center text-white">
+                <Video className="h-8 w-8 text-[#c5e7a7]" aria-hidden="true" />
+                <p className="text-sm font-semibold">Video lesson coming soon</p>
+                <p className="max-w-md text-xs leading-5 text-white/75">Read the lesson notes below, then mark this lesson complete when you are ready.</p>
+              </div>
+            )}
           </div>
 
           {/* Controls & Action Bar */}

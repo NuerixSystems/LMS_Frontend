@@ -3,8 +3,6 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   BookOpen,
-  GraduationCap,
-  User,
   LogOut,
   Sparkles,
   X,
@@ -26,8 +24,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/courses", label: "Courses", icon: BookOpen },
-    { to: "/my-learning", label: "My Learning", icon: GraduationCap },
-    { to: "/profile", label: "Profile", icon: User },
   ];
 
   const handleLogout = () => {
@@ -48,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-md shadow-indigo-100">
             <Sparkles className="h-5 w-5" />
           </div>
-          <span>Learn<span className="text-indigo-600">Pulse</span></span>
+          <span>coursebox</span>
         </NavLink>
         {onClose && (
           <button

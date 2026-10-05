@@ -5,6 +5,7 @@ import { apiService } from "../services/api";
 
 interface AuthContextType extends AuthState {
   token: string | null;
+  completeGoogleLogin: (user: User, accessToken: string) => void;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -28,17 +29,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(AUTH_STORAGE_KEY);
       const storedToken = localStorage.getItem(AUTH_TOKEN_KEY);
       if (stored) {
-        setUser(JSON.parse(stored));
-      } else {
-        setUser(initialUser);
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(initialUser));
+        const storedUser = JSON.parse(stored) as User;
+        if (storedUser.id === initialUser.id && storedUser.email === initialUser.email) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        } else {
+          setUser(storedUser);
+        }
       }
       if (storedToken) {
         setToken(storedToken);
       }
     } catch (e) {
       console.error("Failed to load user from localStorage", e);
-      setUser(initialUser);
+      localStorage.removeItem(AUTH_STORAGE_KEY);
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
         role: "student",
-        bio: "Learning on LearnPulse with connected FastAPI backend.",
+        bio: "Learning on coursebox with a connected FastAPI backend.",
         createdAt: new Date().toISOString().split("T")[0],
       };
 
@@ -129,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
         role: "student",
-        bio: "Newly registered student on LearnPulse.",
+        bio: "Newly registered student on coursebox.",
         createdAt: new Date().toISOString().split("T")[0],
       };
 
@@ -163,6 +166,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("token_type");
+    localStorage.removeItem("student");
+    localStorage.removeItem("user_type");
+    localStorage.removeItem("lms_logged_in");
+  };
+
+  const completeGoogleLogin = (googleUser: User, accessToken: string) => {
+    setUser(googleUser);
+    setToken(accessToken);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(googleUser));
+    localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+    localStorage.setItem("access_token", accessToken);
   };
 
   const resetPassword = async (email: string): Promise<{ success: boolean; message: string }> => {
@@ -210,6 +226,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         isAuthenticated: !!user,
         isLoading,
+        completeGoogleLogin,
         login,
         register,
         logout,
