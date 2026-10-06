@@ -1,7 +1,7 @@
+// src/pages/MyLearningPage.tsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  GraduationCap,
   Play,
   CheckCircle2,
   Clock,
@@ -21,11 +21,16 @@ export const MyLearningPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const navigate = useNavigate();
 
-  // Combine enrolled course info with enrollment data
   const enrolledCourses = enrollments
     .map((enr) => {
       const course = courses.find((c) => c.id === enr.courseId);
-      return course ? { course, enrollment: enr, progress: getCourseProgress(course.id) } : null;
+      return course
+        ? {
+            course,
+            enrollment: enr,
+            progress: getCourseProgress(course.id),
+          }
+        : null;
     })
     .filter(Boolean) as {
     course: (typeof courses)[0];
@@ -33,9 +38,9 @@ export const MyLearningPage: React.FC = () => {
     progress: number;
   }[];
 
-  // Filter based on active tab
   const filteredList = enrolledCourses.filter((item) => {
-    if (activeTab === "in-progress") return item.progress >= 0 && item.progress < 100;
+    if (activeTab === "in-progress")
+      return item.progress >= 0 && item.progress < 100;
     if (activeTab === "completed") return item.progress === 100;
     return true;
   });
@@ -45,19 +50,21 @@ export const MyLearningPage: React.FC = () => {
     const targetId = lastLessonId || course?.modules[0]?.lessons[0]?.id;
     if (targetId) {
       navigate(`/courses/${courseId}/learn/${targetId}`);
+    } else {
+      navigate(`/courses/${courseId}`);
     }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in-50 duration-300">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
             My Learning
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Track your ongoing courses, milestones, and completed certifications.
+            Track your ongoing courses, milestones, and completed
+            certifications.
           </p>
         </div>
 
@@ -123,7 +130,6 @@ export const MyLearningPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Course Cards Grid */}
       {filteredList.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filteredList.map(({ course, enrollment, progress }) => (
@@ -131,14 +137,19 @@ export const MyLearningPage: React.FC = () => {
               key={course.id}
               className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all duration-200"
             >
-              {/* Thumbnail */}
               <div className="relative aspect-video w-full overflow-hidden bg-slate-100">
-                <img
-                  src={course.thumbnail}
-                  alt={course.title}
-                  className="h-full w-full object-cover"
-                />
-                <Badge className="absolute top-3 left-3 bg-white/95 text-slate-800 shadow-xs border-none font-semibold backdrop-blur-xs">
+                {course.thumbnail ? (
+                  <img
+                    src={course.thumbnail}
+                    alt={course.title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-600 to-violet-600">
+                    <BookOpen className="h-14 w-14 text-white/80" />
+                  </div>
+                )}
+                <Badge className="absolute top-3 left-3 bg-white/95 text-slate-800 shadow-xs border-none font-semibold">
                   {course.category}
                 </Badge>
                 {progress === 100 && (
@@ -149,7 +160,6 @@ export const MyLearningPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Body */}
               <div className="flex flex-1 flex-col p-5">
                 <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
                   <div className="flex items-center gap-1">
@@ -165,29 +175,38 @@ export const MyLearningPage: React.FC = () => {
                 </h3>
 
                 <p className="mt-1 text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                  {course.shortDescription}
+                  {course.description}
                 </p>
 
-                {/* Progress bar */}
                 <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
                   <div className="flex justify-between items-center text-xs font-semibold">
                     <span className="text-slate-600">Progress</span>
-                    <span className={progress === 100 ? "text-emerald-600" : "text-indigo-600"}>
+                    <span
+                      className={
+                        progress === 100 ? "text-emerald-600" : "text-indigo-600"
+                      }
+                    >
                       {progress}%
                     </span>
                   </div>
                   <Progress value={progress} size="sm" />
                 </div>
 
-                {/* Actions */}
                 <div className="mt-4 pt-2 flex items-center gap-2">
                   <Button
-                    onClick={() => handleResumeCourse(course.id, enrollment.lastAccessedLessonId)}
+                    onClick={() =>
+                      handleResumeCourse(
+                        course.id,
+                        enrollment.lastAccessedLessonId
+                      )
+                    }
                     size="sm"
                     className="flex-1 font-semibold gap-1.5"
                   >
                     <Play className="h-3.5 w-3.5 fill-current" />
-                    <span>{progress === 100 ? "Review Course" : "Resume Lesson"}</span>
+                    <span>
+                      {progress === 100 ? "Review Course" : "Resume Lesson"}
+                    </span>
                   </Button>
 
                   <Link to={`/courses/${course.id}`}>
@@ -211,7 +230,8 @@ export const MyLearningPage: React.FC = () => {
               : "You haven't enrolled in any courses yet"}
           </h3>
           <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
-            Browse our course catalog to find topics that interest you and start learning!
+            Browse our course catalog to find topics that interest you and
+            start learning!
           </p>
           <div className="mt-5">
             <Link to="/courses">
@@ -226,3 +246,5 @@ export const MyLearningPage: React.FC = () => {
     </div>
   );
 };
+
+export default MyLearningPage;
