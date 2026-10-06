@@ -1,13 +1,50 @@
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
+
 import {
   GoogleLogin,
   type CredentialResponse,
 } from "@react-oauth/google";
+
 import { useAuth } from "../../context/AuthContext";
 import type { User } from "../../types";
 
 /**
- * Decode the Google credential JWT payload.
- * This is only used to read basic profile information returned by Google.
+ * =========================================================
+ * PRODUCTION API CONFIGURATION
+ * =========================================================
+ *
+ * Vite environment variables are injected at BUILD TIME.
+ *
+ * Production:
+ * VITE_API_URL=https://crm-dkc2.onrender.com
+ *
+ * Local development:
+ * VITE_API_URL=http://127.0.0.1:8000
+ *
+ * IMPORTANT:
+ * Do NOT silently fall back to localhost in production.
+ */
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "https://crm-dkc2.onrender.com"
+).replace(/\/+$/, "");
+
+/**
+ * =========================================================
+ * GOOGLE PROFILE DECODER
+ * =========================================================
+ *
+ * Google returns a JWT credential.
+ * This function only decodes the payload so we can read
+ * basic profile information on the frontend.
+ *
+ * The backend remains responsible for validating the
+ * Google credential.
  */
 const getGoogleProfile = (
   credential: string
@@ -33,8 +70,9 @@ const getGoogleProfile = (
 
     const binary = window.atob(paddedPayload);
 
-    const bytes = Uint8Array.from(binary, (character) =>
-      character.charCodeAt(0)
+    const bytes = Uint8Array.from(
+      binary,
+      (character) => character.charCodeAt(0)
     );
 
     return JSON.parse(
@@ -50,41 +88,47 @@ const getGoogleProfile = (
   }
 };
 
+/**
+ * =========================================================
+ * LOGIN PAGE
+ * =========================================================
+ */
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { completeGoogleLogin } = useAuth();
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    completeGoogleLogin,
+  } = useAuth();
 
-  /**
-   * Production:
-   * VITE_API_URL=https://your-backend-domain.com
-   *
-   * Local:
-   * VITE_API_URL=http://127.0.0.1:8000
-   */
-  const API_URL = (
-    import.meta.env.VITE_API_URL ||
-    "https://crm-dkc2.onrender.com"
-  ).replace(/\/+$/, "");
+  const [isLoading, setIsLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   /**
-   * =========================================================
+   * =======================================================
    * GOOGLE LOGIN
-   * =========================================================
+   * =======================================================
    */
   const handleGoogleLogin = async (
     credentialResponse: CredentialResponse
   ) => {
+    /**
+     * Prevent duplicate requests.
+     */
     if (isLoading) {
       return;
     }
 
+    /**
+     * Google did not return a credential.
+     */
     if (!credentialResponse.credential) {
       setError(
         "Google authentication failed. Please try again."
       );
+
       return;
     }
 
@@ -93,18 +137,31 @@ export const LoginPage: React.FC = () => {
 
     try {
       /**
-       * Backend endpoint:
+       * ===================================================
+       * BACKEND REQUEST
+       * ===================================================
        *
-       * /api/lms/auth/google
+       * Production endpoint:
+       *
+       * https://crm-dkc2.onrender.com/api/lms/auth/google
+       *
+       * Local endpoint:
+       *
+       * http://127.0.0.1:8000/api/lms/auth/google
        */
       const response = await fetch(
         `${API_URL}/api/lms/auth/google`,
         {
           method: "POST",
+
           headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
+            "Content-Type":
+              "application/json",
+
+            Accept:
+              "application/json",
           },
+
           body: JSON.stringify({
             credential:
               credentialResponse.credential,
@@ -113,14 +170,16 @@ export const LoginPage: React.FC = () => {
       );
 
       /**
-       * =====================================================
+       * ===================================================
        * READ RESPONSE SAFELY
-       * =====================================================
+       * ===================================================
        */
       let data: any = {};
 
       const contentType =
-        response.headers.get("content-type") || "";
+        response.headers.get(
+          "content-type"
+        ) || "";
 
       if (
         contentType
@@ -133,7 +192,8 @@ export const LoginPage: React.FC = () => {
           data = {};
         }
       } else {
-        const text = await response.text();
+        const text =
+          await response.text();
 
         data = {
           detail: text,
@@ -147,9 +207,9 @@ export const LoginPage: React.FC = () => {
       );
 
       /**
-       * =====================================================
+       * ===================================================
        * API ERROR
-       * =====================================================
+       * ===================================================
        */
       if (!response.ok) {
         throw new Error(
@@ -160,9 +220,9 @@ export const LoginPage: React.FC = () => {
       }
 
       /**
-       * =====================================================
+       * ===================================================
        * ACCESS TOKEN
-       * =====================================================
+       * ===================================================
        */
       const accessToken =
         data?.access_token;
@@ -174,12 +234,14 @@ export const LoginPage: React.FC = () => {
       }
 
       /**
-       * =====================================================
-       * GOOGLE PROFILE
-       * =====================================================
+       * ===================================================
+       * GOOGLE / STUDENT PROFILE
+       * ===================================================
        *
        * Prefer the student object returned by the backend.
-       * Otherwise decode the Google credential.
+       *
+       * If the backend does not return one, decode the
+       * Google credential as a fallback.
        */
       const profile =
         data?.student ||
@@ -187,6 +249,11 @@ export const LoginPage: React.FC = () => {
           credentialResponse.credential
         );
 
+      /**
+       * ===================================================
+       * EMAIL
+       * ===================================================
+       */
       const email =
         typeof profile.email === "string"
           ? profile.email
@@ -199,9 +266,9 @@ export const LoginPage: React.FC = () => {
       }
 
       /**
-       * =====================================================
-       * CREATE FRONTEND USER
-       * =====================================================
+       * ===================================================
+       * FRONTEND USER OBJECT
+       * ===================================================
        */
       const googleUser: User = {
         id: String(
@@ -211,7 +278,8 @@ export const LoginPage: React.FC = () => {
         ),
 
         name:
-          typeof profile.name === "string" &&
+          typeof profile.name ===
+            "string" &&
           profile.name.trim()
             ? profile.name
             : typeof profile.username ===
@@ -223,12 +291,13 @@ export const LoginPage: React.FC = () => {
         email,
 
         avatar:
-          typeof profile.avatar === "string" &&
-          profile.avatar
+          typeof profile.avatar ===
+              "string" &&
+            profile.avatar
             ? profile.avatar
             : typeof profile.picture ===
-                "string" &&
-              profile.picture
+                  "string" &&
+                profile.picture
             ? profile.picture
             : undefined,
 
@@ -236,8 +305,8 @@ export const LoginPage: React.FC = () => {
 
         createdAt:
           typeof profile.created_at ===
-            "string" &&
-          profile.created_at
+              "string" &&
+            profile.created_at
             ? profile.created_at
             : new Date()
                 .toISOString()
@@ -245,9 +314,9 @@ export const LoginPage: React.FC = () => {
       };
 
       /**
-       * =====================================================
+       * ===================================================
        * SAVE AUTH STATE
-       * =====================================================
+       * ===================================================
        */
       completeGoogleLogin(
         googleUser,
@@ -255,9 +324,9 @@ export const LoginPage: React.FC = () => {
       );
 
       /**
-       * =====================================================
-       * SAVE LMS TOKEN INFORMATION
-       * =====================================================
+       * ===================================================
+       * SAVE ACCESS TOKEN
+       * ===================================================
        */
       localStorage.setItem(
         "access_token",
@@ -270,9 +339,9 @@ export const LoginPage: React.FC = () => {
       );
 
       /**
-       * =====================================================
+       * ===================================================
        * SAVE STUDENT PROFILE
-       * =====================================================
+       * ===================================================
        */
       localStorage.setItem(
         "student",
@@ -290,9 +359,9 @@ export const LoginPage: React.FC = () => {
       );
 
       /**
-       * =====================================================
+       * ===================================================
        * LOGIN SUCCESS
-       * =====================================================
+       * ===================================================
        */
       navigate("/dashboard", {
         replace: true,
@@ -304,9 +373,9 @@ export const LoginPage: React.FC = () => {
       );
 
       /**
-       * =====================================================
+       * ===================================================
        * NETWORK ERROR
-       * =====================================================
+       * ===================================================
        */
       if (
         err instanceof TypeError &&
@@ -315,9 +384,11 @@ export const LoginPage: React.FC = () => {
           .includes("fetch")
       ) {
         setError(
-          "Unable to connect to the LMS server. Please check the backend URL and make sure the server is running."
+          "Unable to connect to the LMS server. Please check your internet connection and backend server."
         );
-      } else if (err instanceof Error) {
+      } else if (
+        err instanceof Error
+      ) {
         setError(err.message);
       } else {
         setError(
@@ -330,9 +401,9 @@ export const LoginPage: React.FC = () => {
   };
 
   /**
-   * =========================================================
+   * =======================================================
    * GOOGLE LOGIN ERROR
-   * =========================================================
+   * =======================================================
    */
   const handleGoogleError = () => {
     console.error(
@@ -347,13 +418,15 @@ export const LoginPage: React.FC = () => {
   };
 
   /**
-   * =========================================================
+   * =======================================================
    * UI
-   * =========================================================
+   * =======================================================
    */
   return (
-    <div className="flex min-h-screen flex-col justify-center bg-slate-50 py-12 sm:px-6 lg:px-8">
-      {/* Logo + heading */}
+    <main className="flex min-h-screen flex-col justify-center bg-slate-50 py-12 sm:px-6 lg:px-8">
+      {/* ===================================================
+          LOGO + HEADING
+          =================================================== */}
       <div className="text-center sm:mx-auto sm:w-full sm:max-w-md">
         <Link
           to="/"
@@ -363,22 +436,30 @@ export const LoginPage: React.FC = () => {
             <Sparkles className="h-6 w-6" />
           </div>
 
-          <span>coursebox</span>
+          <span>
+            coursebox
+          </span>
         </Link>
 
-        <h2 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
           Welcome back
-        </h2>
+        </h1>
 
         <p className="mt-2 text-sm text-slate-600">
-          Sign in to continue your learning journey
+          Sign in to continue your learning
+          journey
         </p>
       </div>
 
-      {/* Login card */}
+      {/* ===================================================
+          LOGIN CARD
+          =================================================== */}
       <div className="mt-8 px-4 sm:mx-auto sm:w-full sm:max-w-md sm:px-0">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          {/* Error */}
+
+          {/* =================================================
+              ERROR MESSAGE
+              ================================================= */}
           {error && (
             <div
               role="alert"
@@ -388,16 +469,18 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          {/* Google Login */}
+          {/* =================================================
+              GOOGLE LOGIN
+              ================================================= */}
           <div className="flex flex-col items-center">
             <div className="mb-6 text-center">
-              <h3 className="text-lg font-semibold text-slate-900">
+              <h2 className="text-lg font-semibold text-slate-900">
                 Sign in with Google
-              </h3>
+              </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Use your Gmail account to access your
-                courses
+                Use your Gmail account to access
+                your courses
               </p>
             </div>
 
@@ -430,15 +513,20 @@ export const LoginPage: React.FC = () => {
             )}
           </div>
 
-          {/* Security information */}
+          {/* =================================================
+              SECURITY INFORMATION
+              ================================================= */}
           <div className="mt-6 rounded-lg bg-slate-50 p-4 text-center">
             <p className="text-xs leading-5 text-slate-500">
-              Your Google account is used to securely
-              identify your coursebox student account.
+              Your Google account is used to
+              securely identify your coursebox
+              student account.
             </p>
           </div>
 
-          {/* Register */}
+          {/* =================================================
+              REGISTER
+              ================================================= */}
           <div className="mt-6 text-center text-sm text-slate-500">
             Don't have an account?{" "}
 
@@ -451,7 +539,9 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Back home */}
+        {/* =================================================
+            BACK HOME
+            ================================================= */}
         <div className="mt-6 text-center">
           <Link
             to="/"
@@ -463,7 +553,7 @@ export const LoginPage: React.FC = () => {
           </Link>
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 
