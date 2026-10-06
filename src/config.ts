@@ -1,3 +1,5 @@
+// src/config.ts
+
 /**
  * Central API configuration (single source of truth).
  *
@@ -8,6 +10,7 @@
  * A production build can NEVER point to localhost, even if a wrong
  * value is supplied by mistake.
  */
+
 const PRODUCTION_API_URL = "https://crm-dkc2.onrender.com";
 const DEVELOPMENT_API_URL = "http://127.0.0.1:8000";
 

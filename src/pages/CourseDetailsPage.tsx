@@ -31,7 +31,6 @@ export const CourseDetailsPage: React.FC = () => {
     isLessonCompleted,
   } = useLMS();
 
-  // ✅ Case-insensitive + string compare (backend returns number, URL is string)
   const course = courses.find((c) => String(c.id) === String(courseId));
 
   if (!course) {
@@ -217,7 +216,8 @@ export const CourseDetailsPage: React.FC = () => {
               Course Curriculum
             </h2>
             <p className="text-xs text-slate-500">
-              {course.modules.length} Modules • {totalLessons} Lessons • Click any lesson to watch
+              {course.modules.length} Modules • {totalLessons} Lessons • Click
+              any lesson to watch
             </p>
           </div>
           {enrolled && progress === 100 && (
@@ -295,7 +295,10 @@ export const CourseDetailsPage: React.FC = () => {
                             {lesson.duration}
                           </span>
                           {completed ? (
-                            <Badge variant="success" className="text-[10px] py-0 px-2">
+                            <Badge
+                              variant="success"
+                              className="text-[10px] py-0 px-2"
+                            >
                               Done
                             </Badge>
                           ) : (

@@ -4,36 +4,22 @@ import { ArrowRight, BookOpen, Clock3, Play, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
-import {
-  useLMSBackend,
-  getImageUrl,
-  getCourseProgressFromStorage,
-  getCourseTotals,
-  getLastAccessedLesson,
-} from "../hooks/useLMSBackend";
+import { useLMS } from "../context/LMSContext";
 
 export const HomePage: React.FC = () => {
   const { user } = useAuth();
-  const { courses, loading } = useLMSBackend();
+  const { courses, getCourseProgress, continueCourse, totalEnrolledCount } =
+    useLMS();
 
   const featuredCourses = courses.slice(0, 3);
   const firstName = user?.name?.trim().split(/\s+/)[0] || "Learner";
   const featuredCourse = featuredCourses[0];
 
-  // Find first enrolled course with progress
-  const continueCourse = courses.find((c) => {
-    const totals = getCourseTotals();
-    const progress = getCourseProgressFromStorage(
-      c.course_id,
-      totals[c.course_id] || 0
-    );
-    return progress > 0 && progress < 100;
-  });
-
-  if (loading) {
+  // Loading state
+  if (courses.length === 0 && user) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading...</p>
+      <div className="flex min-h-[400px] items-center justify-center bg-[#f5f9ff]">
+        <p className="text-sm text-slate-500">Loading courses...</p>
       </div>
     );
   }
@@ -45,10 +31,7 @@ export const HomePage: React.FC = () => {
           className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8"
           aria-label="Main navigation"
         >
-          <Link
-            to="/"
-            className="flex flex-col leading-tight text-[#123b7a]"
-          >
+          <Link to="/" className="flex flex-col leading-tight text-[#123b7a]">
             <span className="font-serif text-xl font-semibold">coursebox</span>
             <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#2f6fed]">
               Learn. Build. Grow.
@@ -73,11 +56,14 @@ export const HomePage: React.FC = () => {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        {/* HERO */}
         <section className="relative isolate overflow-hidden rounded-2xl bg-[#123b7a] text-white">
           <div className="absolute inset-y-0 right-0 -z-10 hidden w-[56%] md:block">
-            // HomePage.tsx - only change the img src in Hero + Featured
             <img
-              src={featuredCourse?.thumbnail || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80"}
+              src={
+                featuredCourse?.thumbnail ||
+                "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80"
+              }
               alt=""
               className="h-full w-full object-cover opacity-75"
             />
@@ -113,7 +99,7 @@ export const HomePage: React.FC = () => {
               </Link>
               {user && continueCourse && (
                 <Link
-                  to={`/courses/${continueCourse.course_id}`}
+                  to={`/courses/${continueCourse.course.id}/learn/${continueCourse.nextLessonId}`}
                   className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/30 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                 >
                   <Play className="h-4 w-4" aria-hidden="true" />
@@ -124,6 +110,7 @@ export const HomePage: React.FC = () => {
           </div>
         </section>
 
+        {/* STORY */}
         <section className="grid gap-6 border-b border-slate-200 pb-9 md:grid-cols-[0.9fr_1.1fr] md:gap-12">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2f6fed]">
@@ -171,6 +158,7 @@ export const HomePage: React.FC = () => {
           </div>
         </section>
 
+        {/* STATS */}
         <section
           aria-label="Your learning overview"
           className="grid gap-5 border-y border-slate-200 py-5 sm:grid-cols-3"
@@ -192,7 +180,7 @@ export const HomePage: React.FC = () => {
             </span>
             <div>
               <p className="text-xl font-semibold text-slate-900">
-                {courses.length}
+                {user ? totalEnrolledCount : courses.length}
               </p>
               <p className="text-xs text-slate-500">
                 {user ? "Courses in your library" : "Subject areas"}
@@ -206,10 +194,7 @@ export const HomePage: React.FC = () => {
             <div>
               <p className="text-xl font-semibold text-slate-900">
                 {user && continueCourse
-                  ? `${getCourseProgressFromStorage(
-                    continueCourse.course_id,
-                    getCourseTotals()[continueCourse.course_id] || 0
-                  )}%`
+                  ? `${getCourseProgress(continueCourse.course.id)}%`
                   : "Anytime"}
               </p>
               <p className="text-xs text-slate-500">
@@ -221,6 +206,7 @@ export const HomePage: React.FC = () => {
           </div>
         </section>
 
+        {/* FEATURED COURSES */}
         <section>
           <div className="mb-5 flex items-end justify-between gap-4">
             <div>
@@ -239,44 +225,60 @@ export const HomePage: React.FC = () => {
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {featuredCourses.map((course) => (
-              <Link
-                key={course.course_id}
-                to={user ? `/courses/${course.course_id}` : "/login"}
-                className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition-shadow hover:shadow-md"
-              >
-                <div className="aspect-[16/9] overflow-hidden bg-slate-100">
-                  <img
-                    src={getImageUrl(course.thumbnail_url)}
-                    alt=""
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="p-4">
-                  <p className="text-xs font-semibold text-[#2f6fed] capitalize">
-                    LMS Course{" "}
-                    <span className="px-1 text-slate-300">/</span>{" "}
-                    {course.status}
-                  </p>
-                  <h3 className="mt-2 line-clamp-2 text-base font-semibold leading-6 text-slate-900">
-                    {course.title}
-                  </h3>
-                  <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-500">
-                    {course.description}
-                  </p>
-                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
-                    <span>Self paced</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-                      Any time
-                    </span>
+
+          {featuredCourses.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center">
+              <BookOpen className="mx-auto h-12 w-12 text-slate-300" />
+              <p className="mt-3 text-sm text-slate-500">
+                No courses available yet. Check back soon!
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {featuredCourses.map((course) => (
+                <Link
+                  key={course.id}
+                  to={user ? `/courses/${course.id}` : "/login"}
+                  className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition-shadow hover:shadow-md"
+                >
+                  <div className="aspect-[16/9] overflow-hidden bg-slate-100">
+                    {course.thumbnail ? (
+                      <img
+                        src={course.thumbnail}
+                        alt={course.title}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-600 to-violet-600">
+                        <BookOpen className="h-14 w-14 text-white/80" />
+                      </div>
+                    )}
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <div className="p-4">
+                    <p className="text-xs font-semibold text-[#2f6fed] capitalize">
+                      {course.category || "Course"}{" "}
+                      <span className="px-1 text-slate-300">/</span>{" "}
+                      {course.level || "All Levels"}
+                    </p>
+                    <h3 className="mt-2 line-clamp-2 text-base font-semibold leading-6 text-slate-900">
+                      {course.title}
+                    </h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-500">
+                      {course.description}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
+                      <span>{course.instructor || "Nuerix Systems"}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+                        {course.duration || "Self paced"}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       </main>
     </div>

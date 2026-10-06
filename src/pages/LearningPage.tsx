@@ -15,7 +15,50 @@ import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/progress";
 import { Badge } from "../components/ui/badge";
-import { formatYouTubeEmbedUrl } from "../lib/utils";
+
+// ============================================================
+// YouTube URL formatter helper
+// ============================================================
+
+const formatYouTubeEmbedUrl = (url: string): string => {
+  if (!url) return "";
+
+  // Already an embed URL
+  if (url.includes("/embed/")) return url;
+
+  let videoId = "";
+
+  try {
+    const parsed = new URL(url);
+
+    if (
+      parsed.hostname === "youtube.com" ||
+      parsed.hostname.endsWith(".youtube.com") ||
+      parsed.hostname === "youtube-nocookie.com"
+    ) {
+      if (parsed.pathname.startsWith("/embed/")) {
+        videoId = parsed.pathname.replace("/embed/", "").split("/")[0];
+      } else if (parsed.pathname.startsWith("/shorts/")) {
+        videoId = parsed.pathname.replace("/shorts/", "").split("/")[0];
+      } else {
+        videoId = parsed.searchParams.get("v") || "";
+      }
+    } else if (parsed.hostname === "youtu.be") {
+      videoId = parsed.pathname.replace(/^\/+/, "").split("/")[0];
+    }
+  } catch {
+    // Not a full URL — check for raw video ID
+    if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
+      videoId = url;
+    }
+  }
+
+  if (videoId) {
+    return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0`;
+  }
+
+  return url;
+};
 
 export const LearningPage: React.FC = () => {
   const { courseId, lessonId } = useParams<{
@@ -36,7 +79,6 @@ export const LearningPage: React.FC = () => {
     getPrevLessonId,
   } = useLMS();
 
-  // ✅ String-safe find
   const course = courses.find((c) => String(c.id) === String(courseId));
 
   // Auto enroll if accessing directly

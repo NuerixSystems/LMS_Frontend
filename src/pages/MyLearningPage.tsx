@@ -183,7 +183,9 @@ export const MyLearningPage: React.FC = () => {
                     <span className="text-slate-600">Progress</span>
                     <span
                       className={
-                        progress === 100 ? "text-emerald-600" : "text-indigo-600"
+                        progress === 100
+                          ? "text-emerald-600"
+                          : "text-indigo-600"
                       }
                     >
                       {progress}%

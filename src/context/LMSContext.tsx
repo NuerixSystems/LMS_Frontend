@@ -27,6 +27,9 @@ interface LMSContextType {
   enrollments: Enrollment[];
   lessonProgress: LessonProgress[];
 
+  loadingCourses: boolean;
+  refreshCourses: () => Promise<void>;
+
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 
@@ -273,12 +276,14 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
           const lessons = sortedContents.map((content, index) => {
             const videoUrl = content.video_url || content.url || "";
 
+            const lessonId = String(
+              content.content_id ??
+                content.course_link_id ??
+                `${backendCourse.course_id}-${index + 1}`
+            );
+
             return {
-              id: String(
-                content.content_id ??
-                  content.course_link_id ??
-                  `${backendCourse.course_id}-${index + 1}`
-              ),
+              id: lessonId,
               title: content.title || `Lesson ${index + 1}`,
               description: content.description || "",
               videoUrl,
@@ -307,10 +312,10 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
             enrolledCount: 0,
             duration: "Self-paced",
             totalLessons: lessons.length,
-            instructor: "Nuerix Systems",
+            instructor: "Jayakumar",
             instructorTitle: "Instructor",
             instructorAvatar:
-              "https://ui-avatars.com/api/?name=Nuerix+Systems",
+              "https://ui-avatars.com/api/?name=Jayakumar",
             modules: [module],
           };
 
@@ -746,6 +751,9 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
         courses,
         enrollments,
         lessonProgress,
+
+        loadingCourses,
+        refreshCourses: loadCourses,
 
         searchQuery,
         setSearchQuery,

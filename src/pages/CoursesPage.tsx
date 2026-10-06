@@ -1,13 +1,7 @@
 // src/pages/CoursesPage.tsx
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Search,
-  BookOpen,
-  Play,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
+import { Search, BookOpen, Play, Loader2 } from "lucide-react";
 
 import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
@@ -15,7 +9,7 @@ import { Badge } from "../components/ui/badge";
 
 const CoursesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { courses, getCourseProgress } = useLMS();
+  const { courses, getCourseProgress, loadingCourses } = useLMS();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredCourses = useMemo(() => {
@@ -29,7 +23,7 @@ const CoursesPage: React.FC = () => {
     );
   }, [courses, searchQuery]);
 
-  if (courses.length === 0) {
+  if (loadingCourses && courses.length === 0) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="flex flex-col items-center gap-3">

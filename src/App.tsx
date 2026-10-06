@@ -8,15 +8,20 @@ import {
 } from "react-router-dom";
 
 import { AuthProvider } from "./context/AuthContext";
-import { LMSProvider } from "./context/LMSContext"; // ✅ ADD BACK
+import { LMSProvider } from "./context/LMSContext";
 
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 import { AppLayout } from "./components/layout/AppLayout";
 
+// ==============================
+// Public Pages
+// ==============================
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
-import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 
+// ==============================
+// Protected Pages
+// ==============================
 import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
 import CoursesPage from "./pages/CoursesPage";
@@ -29,16 +34,21 @@ export const App: React.FC = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <LMSProvider>  {/* ✅ Wrap with LMSProvider */}
+        <LMSProvider>
           <Routes>
 
-            {/* PUBLIC */}
+            {/* =====================================================
+                PUBLIC ROUTES
+            ====================================================== */}
+
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/" element={<HomePage />} />
 
-            {/* PROTECTED */}
+            {/* =====================================================
+                PROTECTED APPLICATION ROUTES
+            ====================================================== */}
+
             <Route
               element={
                 <ProtectedRoute>
@@ -57,8 +67,12 @@ export const App: React.FC = () => {
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
 
-            {/* FALLBACK */}
+            {/* =====================================================
+                FALLBACK
+            ====================================================== */}
+
             <Route path="*" element={<Navigate to="/" replace />} />
+
           </Routes>
         </LMSProvider>
       </AuthProvider>
