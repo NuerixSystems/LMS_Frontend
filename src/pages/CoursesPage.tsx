@@ -1,12 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
   Search,
   BookOpen,
   Play,
-  Pause,
-  Maximize2,
+  Video,
   Loader2,
   AlertCircle,
   ChevronRight,
@@ -16,13 +15,6 @@ import {
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { API_URL, readJson } from "../config";
-console.log("=================================");
-console.log("LMS COURSES API CONFIG");
-console.log("API_URL:", API_URL);
-console.log("PROD:", import.meta.env.PROD);
-console.log("MODE:", import.meta.env.MODE);
-console.log("COURSES URL:", `${API_URL}/api/lms/courses`);
-console.log("=================================");
 
 // ============================================================
 // TYPES
@@ -44,7 +36,8 @@ interface CourseContent {
   course_id: number;
   title: string;
   description: string | null;
-  video_url: string;
+  video_url?: string | null;
+  url?: string | null;
   sort_order: number;
   is_preview: boolean;
   status: string;
@@ -86,9 +79,6 @@ const CoursesPage: React.FC = () => {
   const [isVideoPlaying, setIsVideoPlaying] =
     useState(false);
 
-  const [isPlayerPaused, setIsPlayerPaused] =
-    useState(false);
-
   const [searchQuery, setSearchQuery] = useState("");
 
   const [loadingCourses, setLoadingCourses] =
@@ -98,12 +88,6 @@ const CoursesPage: React.FC = () => {
     useState(false);
 
   const [error, setError] = useState("");
-
-  const videoIframeRef =
-    useRef<HTMLIFrameElement | null>(null);
-
-  const videoContainerRef =
-    useRef<HTMLDivElement | null>(null);
 
   // ==========================================================
   // AUTH ERROR
@@ -143,8 +127,6 @@ const CoursesPage: React.FC = () => {
       );
 
       const data = await readJson(response);
-
-      console.log("LMS courses response:", data);
 
       if (response.status === 401) {
         logoutAndRedirect();
@@ -201,8 +183,6 @@ const CoursesPage: React.FC = () => {
         `${API_URL}/api/lms/courses/` +
         `${course.course_id}/content`;
 
-      console.log("Loading course content:", url);
-
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -212,11 +192,6 @@ const CoursesPage: React.FC = () => {
       });
 
       const data = await readJson(response);
-
-      console.log(
-        "Course content response:",
-        data
-      );
 
       if (response.status === 401) {
         logoutAndRedirect();
@@ -255,16 +230,15 @@ const CoursesPage: React.FC = () => {
               item.status === undefined ||
               item.status === null
           )
+          .map((item: CourseContent) => ({
+            ...item,
+            video_url: item.video_url || item.url || "",
+          }))
           .sort(
             (a: CourseContent, b: CourseContent) =>
               Number(a.sort_order || 0) -
               Number(b.sort_order || 0)
           );
-
-      console.log(
-        "Parsed lessons:",
-        lessonList
-      );
 
       const courseWithContent: CourseWithContent = {
         ...course,
@@ -283,7 +257,6 @@ const CoursesPage: React.FC = () => {
       // Important:
       // Do not load YouTube until Play is clicked.
       setIsVideoPlaying(false);
-      setIsPlayerPaused(false);
     } catch (err: any) {
       console.error(
         "Load course content error:",
@@ -342,13 +315,11 @@ const CoursesPage: React.FC = () => {
       return "";
     }
 
-    const rawValue = value.trim();
+    let rawValue = value.trim();
 
     if (!rawValue) {
       return "";
     }
-
-    let sourceUrl = rawValue;
 
     // --------------------------------------------------------
     // If DB contains complete iframe HTML
@@ -364,23 +335,19 @@ const CoursesPage: React.FC = () => {
       );
 
       if (srcMatch?.[1]) {
-        sourceUrl = srcMatch[1]
+        rawValue = srcMatch[1]
           .replace(/&amp;/g, "&")
           .trim();
       }
     }
 
-    // --------------------------------------------------------
-    // Remove HTML entities
-    // --------------------------------------------------------
-
-    sourceUrl = sourceUrl.replace(
+    rawValue = rawValue.replace(
       /&amp;/g,
       "&"
     );
 
     try {
-      const url = new URL(sourceUrl);
+      const url = new URL(rawValue, window.location.origin);
 
       const hostname =
         url.hostname.toLowerCase();
@@ -388,8 +355,9 @@ const CoursesPage: React.FC = () => {
       // youtube.com
       if (
         hostname === "youtube.com" ||
-        hostname === "www.youtube.com" ||
-        hostname === "m.youtube.com"
+        hostname.endsWith(".youtube.com") ||
+        hostname === "youtube-nocookie.com" ||
+        hostname.endsWith(".youtube-nocookie.com")
       ) {
         // /embed/VIDEO_ID
         if (
@@ -409,116 +377,95 @@ const CoursesPage: React.FC = () => {
             .split("/")[0];
         }
 
+        if (url.pathname.startsWith("/live/")) {
+          return url.pathname
+            .replace("/live/", "")
+            .split("/")[0];
+        }
+
         // /watch?v=VIDEO_ID
         return (
           url.searchParams.get("v") || ""
         );
       }
 
-      // youtu.be/VIDEO_ID
-      if (
-        hostname === "youtu.be"
-      ) {
+      if (hostname === "youtu.be") {
         return url.pathname
           .replace(/^\/+/, "")
           .split("/")[0];
       }
-    } catch (error) {
-      console.error(
-        "Invalid YouTube URL:",
-        sourceUrl
-      );
+    } catch {
+      return "";
     }
 
     return "";
   };
 
-  // ==========================================================
-  // YOUTUBE EMBED URL
-  // ==========================================================
-
-  const getYouTubeEmbedUrl = (
+  const getVideoSource = (
     value?: string | null
-  ): string => {
+  ):
+    | { type: "youtube" | "embed" | "file"; src: string }
+    | null => {
+    if (!value?.trim()) {
+      return null;
+    }
+
     const videoId =
       getYouTubeVideoId(value);
 
-    if (!videoId) {
-      return "";
+    if (videoId) {
+      const embedUrl = new URL(
+        `https://www.youtube-nocookie.com/embed/${videoId}`
+      );
+      embedUrl.searchParams.set("autoplay", "1");
+      embedUrl.searchParams.set("playsinline", "1");
+      embedUrl.searchParams.set("rel", "0");
+      embedUrl.searchParams.set("controls", "1");
+
+      return { type: "youtube", src: embedUrl.toString() };
     }
 
-    const embedUrl = new URL(
-      `https://www.youtube-nocookie.com/embed/${videoId}`
-    );
+    let sourceUrl = value.trim().replace(/&amp;/g, "&");
+    const iframeSource = sourceUrl.match(
+      /<iframe[^>]+src=["']([^"']+)["']/i
+    )?.[1];
+    if (iframeSource) {
+      sourceUrl = iframeSource;
+    }
 
-    embedUrl.searchParams.set(
-      "autoplay",
-      "1"
-    );
+    try {
+      const url = new URL(sourceUrl, window.location.origin);
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        return null;
+      }
 
-    embedUrl.searchParams.set(
-      "playsinline",
-      "1"
-    );
+      const vimeoMatch =
+        (url.hostname === "vimeo.com" ||
+          url.hostname.endsWith(".vimeo.com"))
+        ? url.pathname.match(/\/(?:video\/)?(\d+)/)
+        : null;
+      if (vimeoMatch?.[1]) {
+        return {
+          type: "embed",
+          src: `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`,
+        };
+      }
 
-    embedUrl.searchParams.set(
-      "rel",
-      "0"
-    );
+      if (/\.(mp4|webm|ogg|ogv|m4v|mov)$/i.test(url.pathname)) {
+        return { type: "file", src: url.toString() };
+      }
 
-    embedUrl.searchParams.set(
-      "iv_load_policy",
-      "3"
-    );
-
-    embedUrl.searchParams.set(
-      "controls",
-      "0"
-    );
-
-    embedUrl.searchParams.set(
-      "disablekb",
-      "1"
-    );
-
-    embedUrl.searchParams.set(
-      "fs",
-      "0"
-    );
-
-    embedUrl.searchParams.set(
-      "cc_load_policy",
-      "0"
-    );
-
-    embedUrl.searchParams.set(
-      "enablejsapi",
-      "1"
-    );
-
-    embedUrl.searchParams.set(
-      "origin",
-      window.location.origin
-    );
-
-    return embedUrl.toString();
+      return { type: "embed", src: url.toString() };
+    } catch {
+      return null;
+    }
   };
 
-  // ==========================================================
-  // YOUTUBE THUMBNAIL
-  // ==========================================================
-
-  const getYouTubeThumbnailUrl = (
-    value?: string | null
-  ): string => {
-    const videoId =
-      getYouTubeVideoId(value);
-
-    if (!videoId) {
-      return "";
-    }
-
-    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  const getYouTubeThumbnailUrl = (value?: string | null): string => {
+    const videoId = getYouTubeVideoId(value);
+    return videoId
+      ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+      : "";
   };
 
   // ==========================================================
@@ -538,36 +485,10 @@ const CoursesPage: React.FC = () => {
   const handleOpenLesson = (
     content: CourseContent
   ) => {
-    if (!content) {
-      return;
-    }
-
-    if (!content.video_url) {
-      setError(
-        "This lesson does not have a video link."
-      );
-      return;
-    }
-
-    const videoId =
-      getYouTubeVideoId(
-        content.video_url
-      );
-
-    if (!videoId) {
-      setError(
-        "The video link for this lesson is invalid or unsupported."
-      );
-      return;
-    }
-
     setError("");
     setSelectedLesson(content);
 
-    // Important:
-    // Selecting a lesson should show poster first.
     setIsVideoPlaying(false);
-    setIsPlayerPaused(false);
 
     setTimeout(() => {
       document
@@ -590,91 +511,16 @@ const CoursesPage: React.FC = () => {
       return;
     }
 
-    const videoId =
-      getYouTubeVideoId(
-        selectedLesson.video_url
-      );
-
-    if (!videoId) {
+    if (!getVideoSource(selectedLesson.video_url)) {
       setError(
-        "The video link for this lesson is invalid or unsupported."
+        "This lesson does not have a playable video URL. Add a YouTube link, an embeddable video link, or a supported video file URL."
       );
       return;
     }
 
     setError("");
-    setIsPlayerPaused(false);
     setIsVideoPlaying(true);
   };
-
-  // ==========================================================
-  // YOUTUBE COMMAND
-  // ==========================================================
-
-  const sendYouTubeCommand = (
-    command: string
-  ) => {
-    const iframe =
-      videoIframeRef.current;
-
-    if (!iframe?.contentWindow) {
-      return;
-    }
-
-    iframe.contentWindow.postMessage(
-      JSON.stringify({
-        event: "command",
-        func: command,
-        args: [],
-      }),
-      "*"
-    );
-  };
-
-  // ==========================================================
-  // PLAY / PAUSE
-  // ==========================================================
-
-  const toggleVideoPlayPause = () => {
-    if (!isVideoPlaying) {
-      return;
-    }
-
-    if (isPlayerPaused) {
-      sendYouTubeCommand(
-        "playVideo"
-      );
-
-      setIsPlayerPaused(false);
-    } else {
-      sendYouTubeCommand(
-        "pauseVideo"
-      );
-
-      setIsPlayerPaused(true);
-    }
-  };
-
-  // ==========================================================
-  // FULLSCREEN
-  // ==========================================================
-
-  const handleVideoFullscreen =
-    async () => {
-      try {
-        if (document.fullscreenElement) {
-          await document.exitFullscreen();
-          return;
-        }
-
-        await videoContainerRef.current?.requestFullscreen();
-      } catch (error) {
-        console.error(
-          "Fullscreen error:",
-          error
-        );
-      }
-    };
 
   // ==========================================================
   // MARK COMPLETE
@@ -731,7 +577,6 @@ const CoursesPage: React.FC = () => {
 
     setSelectedLesson(nextLesson);
     setIsVideoPlaying(false);
-    setIsPlayerPaused(false);
     setError("");
 
     setTimeout(() => {
@@ -778,7 +623,6 @@ const CoursesPage: React.FC = () => {
 
     setSelectedLesson(previousLesson);
     setIsVideoPlaying(false);
-    setIsPlayerPaused(false);
     setError("");
 
     setTimeout(() => {
@@ -845,13 +689,10 @@ const CoursesPage: React.FC = () => {
           )
         : 0;
 
-    const currentEmbedUrl =
-      selectedLesson &&
-      isVideoPlaying
-        ? getYouTubeEmbedUrl(
-            selectedLesson.video_url
-          )
-        : "";
+    const currentVideoSource =
+      selectedLesson
+        ? getVideoSource(selectedLesson.video_url)
+        : null;
 
     const currentThumbnailUrl =
       selectedLesson
@@ -874,7 +715,6 @@ const CoursesPage: React.FC = () => {
                 setSelectedCourse(null);
                 setSelectedLesson(null);
                 setIsVideoPlaying(false);
-                setIsPlayerPaused(false);
                 setError("");
               }}
               className="mb-3 text-sm font-medium text-slate-500 hover:text-indigo-600"
@@ -934,9 +774,9 @@ const CoursesPage: React.FC = () => {
 
         {/* LMS */}
 
-        <div className="mx-auto max-w-[1500px] px-0 sm:px-4 lg:px-6">
+        <div className="mx-auto max-w-[1500px] px-0 py-5 sm:px-4 sm:py-6 lg:px-6">
 
-          <div className="grid min-h-[calc(100vh-180px)] grid-cols-1 lg:grid-cols-[1fr_360px] lg:gap-5">
+          <div className="grid min-h-[calc(100vh-180px)] grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
 
             {/* VIDEO */}
 
@@ -944,120 +784,90 @@ const CoursesPage: React.FC = () => {
 
               <div
                 id="lms-video-player"
-                className="bg-black"
+                className="overflow-hidden rounded-2xl bg-slate-950 shadow-xl"
               >
                 {selectedLesson ? (
-                  <div
-                    ref={videoContainerRef}
-                    className="group relative aspect-video w-full overflow-hidden bg-black"
-                  >
-
-                    {isVideoPlaying &&
-                    currentEmbedUrl ? (
-                      <>
-                        <iframe
-                          ref={videoIframeRef}
-                          key={currentEmbedUrl}
-                          src={currentEmbedUrl}
-                          title={
-                            selectedLesson.title
+                  <div className="relative aspect-video w-full overflow-hidden bg-slate-950">
+                    {isVideoPlaying && currentVideoSource ? (
+                      currentVideoSource.type === "file" ? (
+                        <video
+                          key={currentVideoSource.src}
+                          src={currentVideoSource.src}
+                          title={selectedLesson.title}
+                          className="h-full w-full"
+                          controls
+                          autoPlay
+                          playsInline
+                          onError={() =>
+                            setError("This video could not be loaded. Check that the video URL is public and supports browser playback.")
                           }
+                        />
+                      ) : (
+                        <iframe
+                          key={currentVideoSource.src}
+                          src={currentVideoSource.src}
+                          title={selectedLesson.title}
                           className="h-full w-full border-0"
                           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                          allowFullScreen
                           referrerPolicy="strict-origin-when-cross-origin"
                         />
-
-                        {/* CUSTOM CONTROLS */}
-
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pb-3 pt-10 opacity-0 transition group-hover:opacity-100">
-                          <div className="pointer-events-auto flex items-center justify-between">
-
-                            <button
-                              type="button"
-                              onClick={
-                                toggleVideoPlayPause
-                              }
-                              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white"
-                            >
-                              {isPlayerPaused ? (
-                                <Play className="h-5 w-5 fill-current" />
-                              ) : (
-                                <Pause className="h-5 w-5 fill-current" />
-                              )}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={
-                                handleVideoFullscreen
-                              }
-                              className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-white"
-                            >
-                              <Maximize2 className="h-5 w-5" />
-                            </button>
-
-                          </div>
-                        </div>
-                      </>
+                      )
                     ) : (
-
-                      /* POSTER */
-
-                      <button
-                        type="button"
-                        onClick={
-                          handlePlayVideo
-                        }
-                        className="group relative h-full w-full overflow-hidden text-left"
-                      >
-
-                        {currentThumbnailUrl ? (
-                          <img
-                            src={
-                              currentThumbnailUrl
-                            }
-                            alt={
-                              selectedLesson.title
-                            }
-                            className="absolute inset-0 h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-black" />
-                        )}
-
-                        <div className="absolute inset-0 bg-black/30" />
-
-                        <span className="absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-indigo-600 text-white shadow-2xl transition group-hover:scale-110">
-
-                          <Play className="ml-1 h-9 w-9 fill-current" />
-
-                        </span>
-
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-5 pb-5 pt-12 sm:px-7 sm:pb-7">
-
-                          <p className="text-xs font-semibold uppercase tracking-wider text-white/80">
-                            Lesson{" "}
-                            {selectedIndex + 1}
-                          </p>
-
-                          <h2 className="mt-1 text-lg font-bold text-white sm:text-2xl">
-                            {
-                              selectedLesson.title
-                            }
+                      currentVideoSource ? (
+                        <button
+                          type="button"
+                          onClick={handlePlayVideo}
+                          className="group relative h-full w-full overflow-hidden text-left"
+                        >
+                          {currentThumbnailUrl ? (
+                            <img
+                              src={currentThumbnailUrl}
+                              alt=""
+                              className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950" />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/25 to-slate-950/10" />
+                          <span className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-indigo-700 shadow-2xl transition group-hover:scale-110">
+                            <Play className="ml-1 h-7 w-7 fill-current" />
+                          </span>
+                          <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
+                            <p className="text-xs font-semibold uppercase tracking-widest text-indigo-200">
+                              Lesson {selectedIndex + 1}
+                            </p>
+                            <h2 className="mt-1 text-lg font-bold text-white sm:text-2xl">
+                              {selectedLesson.title}
+                            </h2>
+                            <p className="mt-2 text-sm text-white/75">
+                              Select to start this lesson
+                            </p>
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="flex h-full flex-col items-center justify-center px-6 text-center text-white">
+                          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-indigo-200">
+                            <Video className="h-7 w-7" />
+                          </span>
+                          <h2 className="mt-4 text-lg font-semibold">
+                            {selectedLesson.title}
                           </h2>
-
-                          <p className="mt-1 text-xs text-white/70">
-                            Click Play to start
-                            the lesson
+                          <p className="mt-2 max-w-md text-sm leading-6 text-slate-300">
+                            {selectedLesson.video_url
+                              ? "This video link could not be recognized. Use a YouTube, Vimeo, embeddable video, or MP4/WebM URL."
+                              : "No video has been added to this lesson yet. You can still read the lesson details and continue through the course."}
                           </p>
-
                         </div>
-                      </button>
+                      )
                     )}
                   </div>
                 ) : (
-                  <div className="flex aspect-video items-center justify-center bg-slate-950 text-white">
-                    Select a lesson
+                  <div className="flex aspect-video flex-col items-center justify-center text-white">
+                    <BookOpen className="h-10 w-10 text-indigo-300" />
+                    <p className="mt-3 text-sm text-slate-300">
+                      Select a lesson to start learning
+                    </p>
                   </div>
                 )}
               </div>
@@ -1182,21 +992,34 @@ const CoursesPage: React.FC = () => {
 
             {/* SIDEBAR */}
 
-            <aside className="border-t border-slate-200 bg-white lg:border-l lg:border-t-0">
+            <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
-              <div className="sticky top-0 max-h-screen overflow-y-auto">
+              <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
 
-                <div className="border-b border-slate-200 p-5">
-                  <h2 className="font-bold text-slate-900">
-                    Course Content
-                  </h2>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    {contents.length}{" "}
-                    {contents.length === 1
-                      ? "lesson"
-                      : "lessons"}
-                  </p>
+                <div className="border-b border-slate-100 bg-slate-50/80 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600">
+                        Learning path
+                      </p>
+                      <h2 className="mt-1 font-bold text-slate-900">
+                        Course lessons
+                      </h2>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                      {contents.length} {contents.length === 1 ? "lesson" : "lessons"}
+                    </span>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                    <span>Course progress</span>
+                    <span className="font-semibold text-slate-700">{progressPercentage}%</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-indigo-600 transition-all"
+                      style={{ width: `${progressPercentage}%` }}
+                    />
+                  </div>
                 </div>
 
                 {loadingContent ? (
@@ -1212,7 +1035,7 @@ const CoursesPage: React.FC = () => {
                     </h3>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
+                  <div className="space-y-1 p-2">
 
                     {contents.map(
                       (
@@ -1239,10 +1062,10 @@ const CoursesPage: React.FC = () => {
                                 content
                               )
                             }
-                            className={`group flex w-full items-start gap-3 p-4 text-left transition ${
+                            className={`group flex w-full items-start gap-3 rounded-xl p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 ${
                               isActive
-                                ? "bg-indigo-50"
-                                : "bg-white hover:bg-slate-50"
+                                ? "bg-indigo-50 shadow-sm"
+                                : "hover:bg-slate-50"
                             }`}
                           >
 
@@ -1299,13 +1122,13 @@ const CoursesPage: React.FC = () => {
                               <div className="mt-2 pl-5">
 
                                 {content.is_preview && (
-                                  <span className="mr-2 text-[10px] font-semibold text-emerald-600">
+                                  <span className="mr-2 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                                     Preview
                                   </span>
                                 )}
 
                                 <span className="text-[10px] text-slate-400">
-                                  Video lesson
+                                  {content.video_url ? "Video lesson" : "Lesson notes"}
                                 </span>
 
                               </div>
