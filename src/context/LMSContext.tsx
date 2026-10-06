@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { Course, Enrollment, LessonProgress } from "../types";
 import { initialCourses, initialEnrollments, initialLessonProgress } from "../data/mockCourses";
 import { useAuth } from "./AuthContext";

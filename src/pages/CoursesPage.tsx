@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -49,8 +49,7 @@ interface CourseWithContent extends BackendCourse {
 // API URL
 // ============================================================
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+import { API_URL, readJson } from "../config";
 
 // ============================================================
 // HELPER
@@ -126,7 +125,7 @@ export const CoursesPage: React.FC = () => {
         }
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
 
       if (response.status === 401) {
         localStorage.removeItem("access_token");
@@ -207,7 +206,7 @@ export const CoursesPage: React.FC = () => {
         }
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
 
       if (response.status === 401) {
         localStorage.removeItem("access_token");

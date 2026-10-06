@@ -29,10 +29,7 @@ import type { User } from "../../types";
  * IMPORTANT:
  * Do NOT silently fall back to localhost in production.
  */
-const API_URL = (
-  import.meta.env.VITE_API_URL ||
-  "https://crm-dkc2.onrender.com"
-).replace(/\/+$/, "");
+import { API_URL } from "../../config";
 
 /**
  * =========================================================
@@ -150,7 +147,7 @@ export const LoginPage: React.FC = () => {
        * http://127.0.0.1:8000/api/lms/auth/google
        */
       const response = await fetch(
-        "https://crm-dkc2.onrender.com/api/lms/auth/google",
+        `${API_URL}/api/lms/auth/google`,
         {
           method: "POST",
 

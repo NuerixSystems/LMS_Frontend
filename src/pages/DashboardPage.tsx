@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   BookOpen,
@@ -15,10 +15,7 @@ import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/progress";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  "http://127.0.0.1:8000";
+import { API_URL as API_BASE_URL, readJson } from "../config";
 
 interface BackendCourse {
   course_id: number;
@@ -160,7 +157,7 @@ export const DashboardPage: React.FC = () => {
           );
         }
 
-        const data = await response.json();
+        const data = await readJson(response);
 
         /*
          * Backend may return:
@@ -278,7 +275,7 @@ export const DashboardPage: React.FC = () => {
             }
 
             const data: CourseContentResponse =
-              await response.json();
+              await readJson(response);
 
             contentMap[course.course_id] = data;
 

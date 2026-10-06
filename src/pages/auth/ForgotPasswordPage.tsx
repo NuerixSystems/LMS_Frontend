@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, ArrowLeft, CheckCircle2, Sparkles } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";

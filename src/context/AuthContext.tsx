@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import type { User, AuthState } from "../types";
 import { initialUser } from "../data/mockCourses";
 import { apiService } from "../services/api";
