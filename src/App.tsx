@@ -23,7 +23,7 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 // ==============================
 import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
-import { CoursesPage } from "./pages/CoursesPage";
+import CoursesPage from "./pages/CoursesPage";
 import { CourseDetailsPage } from "./pages/CourseDetailsPage";
 import { LearningPage } from "./pages/LearningPage";
 import { MyLearningPage } from "./pages/MyLearningPage";

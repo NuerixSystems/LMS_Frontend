@@ -80,9 +80,19 @@ interface LMSContextType {
   } | null;
 }
 
-const LMSContext = createContext<LMSContextType | undefined>(
+export const LMSContext = createContext<LMSContextType | undefined>(
   undefined
 );
+
+export const useLMS = () => {
+  const context = useContext(LMSContext);
+
+  if (!context) {
+    throw new Error("useLMS must be used within an LMSProvider");
+  }
+
+  return context;
+};
 
 const ENROLLMENTS_KEY = "lms_enrollments";
 const PROGRESS_KEY = "lms_lesson_progress";

@@ -12,14 +12,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { useLMS } from "../context/LMSContext";
 import { Input, PasswordInput } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 
 export const ProfilePage: React.FC = () => {
   const { user, updateProfile, logout, changePassword } = useAuth();
-  const { totalEnrolledCount, completedCount, inProgressCount } = useLMS();
   const navigate = useNavigate();
 
   // Profile info state
@@ -128,21 +126,6 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Stats Grid */}
-        <div className="mt-8 grid grid-cols-3 gap-4 border-t border-slate-100 pt-6">
-          <div className="text-center p-3 rounded-xl bg-slate-50">
-            <p className="text-xs text-slate-500 font-medium">Enrolled</p>
-            <p className="text-xl font-bold text-slate-900 mt-0.5">{totalEnrolledCount}</p>
-          </div>
-          <div className="text-center p-3 rounded-xl bg-slate-50">
-            <p className="text-xs text-slate-500 font-medium">In Progress</p>
-            <p className="text-xl font-bold text-indigo-600 mt-0.5">{inProgressCount}</p>
-          </div>
-          <div className="text-center p-3 rounded-xl bg-slate-50">
-            <p className="text-xs text-slate-500 font-medium">Completed</p>
-            <p className="text-xl font-bold text-emerald-600 mt-0.5">{completedCount}</p>
-          </div>
-        </div>
       </div>
 
       {/* Forms Grid */}
