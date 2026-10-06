@@ -13,6 +13,7 @@ import {
 
 import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
 import { Progress } from "../components/ui/progress";
 
 import { API_URL as API_BASE_URL, readJson } from "../config";
@@ -53,6 +54,8 @@ interface DashboardCourse {
   description: string;
   thumbnail: string;
   totalLessons: number;
+  price?: number | string | null;
+  status?: string;
 }
 
 const getAuthToken = (): string | null => {
@@ -335,6 +338,8 @@ export const DashboardPage: React.FC = () => {
             content?.contents?.length ??
             course.total_lessons ??
             0,
+          price: course.price,
+          status: course.status || "Active",
         };
       });
   }, [backendCourses, courseContents]);
@@ -348,7 +353,7 @@ export const DashboardPage: React.FC = () => {
    * only when it already contains courses.
    */
 
-  const visibleCourses =
+  const visibleCourses: DashboardCourse[] =
     dashboardCourses.length > 0
       ? dashboardCourses
       : courses.map((course) => ({
@@ -359,6 +364,7 @@ export const DashboardPage: React.FC = () => {
             "Explore this course and start learning.",
           thumbnail: course.thumbnail,
           totalLessons: course.totalLessons || 0,
+          status: "Active",
         }));
 
   /*
@@ -423,19 +429,27 @@ export const DashboardPage: React.FC = () => {
    */
 
   return (
-    <div className="space-y-8 animate-in fade-in-50 duration-300">
+    <div className="space-y-6 animate-in fade-in-50 duration-300">
       {/* ======================================================
           HEADER
       ======================================================= */}
 
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-          Dashboard
-        </h1>
-
-        <p className="mt-1 text-sm text-slate-500">
-          Continue learning and explore your LMS courses.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Continue learning and explore your LMS courses.
+          </p>
+        </div>
+        <Link to="/courses">
+          <Button variant="outline" className="gap-2">
+            <BookOpen className="h-4 w-4" />
+            Browse Courses
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </Link>
       </div>
 
       {/* ======================================================
@@ -462,8 +476,8 @@ export const DashboardPage: React.FC = () => {
           STAT CARDS
       ======================================================= */}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-slate-500">
@@ -481,7 +495,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-slate-500">
@@ -499,7 +513,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-slate-500">
@@ -517,7 +531,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-slate-500">
@@ -561,12 +575,12 @@ export const DashboardPage: React.FC = () => {
             </Link>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs transition hover:shadow-md">
+            <div className="grid grid-cols-1 md:grid-cols-[280px_1fr]">
               <img
                 src={continueCourse.thumbnail}
                 alt={continueCourse.title}
-                className="h-full min-h-[180px] w-full object-cover"
+                className="aspect-video h-full w-full object-cover md:aspect-auto md:min-h-[220px]"
               />
 
               <div className="flex flex-col justify-center p-6">
@@ -657,7 +671,7 @@ export const DashboardPage: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {visibleCourses.slice(0, 6).map((course) => {
               const enrolled = isEnrolled(course.id);
               const progress = getCourseProgress(
@@ -684,7 +698,7 @@ export const DashboardPage: React.FC = () => {
               return (
                 <div
                   key={course.id}
-                  className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <Link
                     to={`/courses/${course.id}`}
@@ -697,6 +711,11 @@ export const DashboardPage: React.FC = () => {
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
 
+                      <div className="absolute left-3 top-3">
+                        <Badge className="border-none bg-white/95 text-slate-800 shadow-sm">
+                          Course
+                        </Badge>
+                      </div>
                       {enrolled && (
                         <div className="absolute right-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 shadow-sm">
                           {progress}% complete
@@ -705,23 +724,28 @@ export const DashboardPage: React.FC = () => {
                     </div>
                   </Link>
 
-                  <div className="p-5">
+                  <div className="flex flex-1 flex-col p-5">
+                    <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      LMS Course
+                      <span aria-hidden="true">•</span>
+                      <span className="capitalize">{course.status || "Active"}</span>
+                    </div>
                     <Link
                       to={`/courses/${course.id}`}
                     >
-                      <h3 className="line-clamp-1 text-base font-bold text-slate-900 group-hover:text-indigo-600">
+                      <h3 className="line-clamp-2 text-lg font-bold text-slate-900 group-hover:text-indigo-600">
                         {course.title}
                       </h3>
                     </Link>
 
-                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                    <p className="mt-2 line-clamp-3 flex-1 text-sm leading-6 text-slate-500">
                       {course.description}
                     </p>
 
                     <div className="mt-4 flex items-center gap-4 text-xs text-slate-500">
                       <div className="flex items-center gap-1.5">
                         <BookOpen className="h-3.5 w-3.5" />
-
                         <span>
                           {lessonCount}{" "}
                           {lessonCount === 1
@@ -731,8 +755,15 @@ export const DashboardPage: React.FC = () => {
                       </div>
                     </div>
 
+                    {course.price !== null &&
+                      course.price !== undefined && (
+                        <div className="mt-4 text-sm font-semibold text-slate-800">
+                          ₹{Number(course.price).toLocaleString("en-IN")}
+                        </div>
+                      )}
+
                     {enrolled && (
-                      <div className="mt-4">
+                      <div className="mt-4 border-t border-slate-100 pt-3">
                         <Progress
                           value={progress}
                           size="sm"
@@ -741,7 +772,7 @@ export const DashboardPage: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="mt-4 flex gap-2">
+                    <div className="mt-5 flex gap-2">
                       <Link
                         to={`/courses/${course.id}`}
                         className="flex-1"
