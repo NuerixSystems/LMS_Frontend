@@ -150,7 +150,7 @@ export const LoginPage: React.FC = () => {
        * http://127.0.0.1:8000/api/lms/auth/google
        */
       const response = await fetch(
-        `${API_URL}/api/lms/auth/google`,
+        `https://crm-dkc2.onrender.com/api/lms/auth/google`,
         {
           method: "POST",
 
