@@ -168,11 +168,13 @@ export const LMSProvider: React.FC<{
    */
   const getToken = useCallback((): string | null => {
     const possibleKeys = [
+      "lms_auth_token",
       "token",
       "access_token",
       "accessToken",
       "auth_token",
       "jwt",
+      "lms_token",
     ];
 
     for (const key of possibleKeys) {

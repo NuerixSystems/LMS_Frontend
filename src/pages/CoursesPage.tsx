@@ -52,7 +52,24 @@ interface CourseWithContent extends BackendCourse {
 // ============================================================
 
 const getToken = (): string | null => {
-  return localStorage.getItem("access_token");
+  const possibleKeys = [
+    "lms_auth_token",
+    "access_token",
+    "token",
+    "accessToken",
+    "auth_token",
+    "jwt",
+    "lms_token",
+  ];
+
+  for (const key of possibleKeys) {
+    const token = localStorage.getItem(key);
+    if (token) {
+      return token;
+    }
+  }
+
+  return null;
 };
 
 // ============================================================
@@ -1207,7 +1224,7 @@ const CoursesPage: React.FC = () => {
           </h3>
 
           <p className="mt-1 text-sm text-slate-500">
-            There are no active courses available.
+            No LMS courses were returned. A course added in CRM must also be synced or linked to the LMS before learners can see its lessons here.
           </p>
 
         </div>

@@ -60,6 +60,7 @@ interface DashboardCourse {
 
 const getAuthToken = (): string | null => {
   const possibleKeys = [
+    "lms_auth_token",
     "access_token",
     "token",
     "lms_access_token",
