@@ -16,6 +16,13 @@ import {
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { API_URL, readJson } from "../config";
+console.log("=================================");
+console.log("LMS COURSES API CONFIG");
+console.log("API_URL:", API_URL);
+console.log("PROD:", import.meta.env.PROD);
+console.log("MODE:", import.meta.env.MODE);
+console.log("COURSES URL:", `${API_URL}/api/lms/courses`);
+console.log("=================================");
 
 // ============================================================
 // TYPES
