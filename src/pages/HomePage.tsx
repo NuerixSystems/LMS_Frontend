@@ -268,7 +268,7 @@ export const HomePage: React.FC = () => {
                       {course.description}
                     </p>
                     <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
-                      <span>{course.instructor || "Nuerix Systems"}</span>
+                      <span>{course.instructor || "JayaKumar"}</span>
                       <span className="inline-flex items-center gap-1">
                         <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
                         {course.duration || "Self paced"}
