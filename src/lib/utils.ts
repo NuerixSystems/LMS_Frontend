@@ -5,34 +5,109 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatYouTubeEmbedUrl(url: string): string {
-  if (!url) return "";
+/**
+ * Extracts the actual source URL when the value contains an iframe.
+ */
+const getVideoSourceUrl = (value: string): string => {
+  const trimmed = value.trim();
 
-  let source = url.trim();
-  const iframeSource = source.match(
+  const iframeSource = trimmed.match(
     /<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i
   );
 
-  if (iframeSource?.[1]) {
-    source = iframeSource[1].replace(/&amp;/g, "&");
-  }
+  const source = iframeSource?.[1]
+    ? iframeSource[1].replace(/&amp;/g, "&")
+    : trimmed;
 
-  if (source.startsWith("//")) {
-    source = `https:${source}`;
-  }
+  return source.startsWith("//")
+    ? `https:${source}`
+    : source;
+};
 
-  if (
-    source.includes("youtube.com/embed/") ||
-    source.includes("youtube-nocookie.com/embed/")
-  ) {
-    return source;
-  }
+/**
+ * Checks whether a video source belongs to YouTube.
+ *
+ * YouTube URLs are NOT supported by the native <video> player.
+ */
+export function isYouTubeVideoUrl(
+  value: string
+): boolean {
+  if (!value) return false;
 
-  // Match youtu.be/<id>
-  const matchShort = source.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
-  if (matchShort) return `https://www.youtube.com/embed/${matchShort[1]}`;
-  // Match youtube.com/watch?v=<id>
-  const matchWatch = source.match(/[?&]v=([a-zA-Z0-9_-]+)/);
-  if (matchWatch) return `https://www.youtube.com/embed/${matchWatch[1]}`;
-  return source;
+  const source = getVideoSourceUrl(value);
+
+  try {
+    const hostname = new URL(source)
+      .hostname
+      .toLowerCase();
+
+    return (
+      hostname === "youtu.be" ||
+      hostname === "youtube.com" ||
+      hostname.endsWith(".youtube.com") ||
+      hostname === "youtube-nocookie.com" ||
+      hostname.endsWith(".youtube-nocookie.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function formatYouTubeEmbedUrl(
+  value: string
+): string {
+  if (!value) return "";
+
+  const source = getVideoSourceUrl(value);
+
+  try {
+    const parsed = new URL(source);
+    const hostname = parsed.hostname.toLowerCase();
+    let videoId = "";
+    let embedUrl: URL;
+
+    if (hostname === "youtu.be") {
+      videoId = parsed.pathname.slice(1).split("/")[0];
+    } else if (
+      hostname === "youtube.com" ||
+      hostname.endsWith(".youtube.com") ||
+      hostname === "youtube-nocookie.com" ||
+      hostname.endsWith(".youtube-nocookie.com")
+    ) {
+      const pathMatch = parsed.pathname.match(
+        /^\/(?:embed|shorts|live)\/([^/]+)/
+      );
+
+      if (pathMatch) {
+        videoId = pathMatch[1];
+      } else {
+        videoId = parsed.searchParams.get("v") || "";
+      }
+
+      if (
+        videoId &&
+        parsed.pathname.startsWith("/embed/")
+      ) {
+        embedUrl = parsed;
+      }
+    } else {
+      return "";
+    }
+
+    if (!videoId) return "";
+
+    embedUrl ??= new URL(
+      `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}`
+    );
+    embedUrl.hostname = "www.youtube-nocookie.com";
+    embedUrl.searchParams.set("controls", "0");
+    embedUrl.searchParams.set("disablekb", "1");
+    embedUrl.searchParams.set("iv_load_policy", "3");
+    embedUrl.searchParams.set("playsinline", "1");
+    embedUrl.searchParams.set("rel", "0");
+
+    return embedUrl.toString();
+  } catch {
+    return "";
+  }
 }

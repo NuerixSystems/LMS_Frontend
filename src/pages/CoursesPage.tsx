@@ -396,7 +396,6 @@ export const CoursesPage: React.FC = () => {
     embedUrl.searchParams.set("iv_load_policy", "3");
     embedUrl.searchParams.set("controls", "0");
     embedUrl.searchParams.set("disablekb", "1");
-    embedUrl.searchParams.set("fs", "0");
     embedUrl.searchParams.set("cc_load_policy", "0");
     embedUrl.searchParams.set("enablejsapi", "1");
     embedUrl.searchParams.set(
@@ -786,6 +785,7 @@ export const CoursesPage: React.FC = () => {
                         src={currentEmbedUrl}
                         title={selectedLesson.title}
                         className="h-full w-full border-0"
+                        sandbox="allow-scripts allow-same-origin allow-presentation"
                         allow="autoplay; encrypted-media; picture-in-picture"
                         referrerPolicy="strict-origin-when-cross-origin"
                       />
