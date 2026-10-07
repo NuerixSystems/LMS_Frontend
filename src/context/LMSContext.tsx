@@ -30,6 +30,7 @@ interface LMSContextType {
 
   loadingCourses: boolean;
   coursesError: string;
+  courseContentErrors: Record<string, string>;
   refreshCourses: () => Promise<void>;
 
   searchQuery: string;
@@ -94,6 +95,7 @@ interface BackendContent {
 }
 
 interface BackendCourseContentResponse {
+  detail?: string;
   course_id?: number;
   tenant_id?: number;
   title?: string;
@@ -172,6 +174,9 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [coursesError, setCoursesError] = useState("");
+  const [courseContentErrors, setCourseContentErrors] = useState<
+    Record<string, string>
+  >({});
   const coursesRequestRef = useRef<Promise<void> | null>(null);
 
   // ----------------------------------------------------------
@@ -221,6 +226,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const loadCoursesRequest = useCallback(async () => {
     setCoursesError("");
+    setCourseContentErrors({});
     setLoadingCourses(true);
 
     try {
@@ -252,6 +258,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
         ? coursesData.courses
         : [];
       const enrolledCourseIds = getStoredEnrolledCourseIds();
+      const contentErrors: Record<string, string> = {};
 
       // -------- STEP 2: Fetch protected content for enrolled courses only --------
       const frontendCourses: Course[] = await Promise.all(
@@ -272,6 +279,9 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
                 await readJson(contentResponse);
 
               if (!contentResponse.ok) {
+                contentErrors[String(backendCourse.course_id)] =
+                  contentData?.detail ||
+                  `Unable to load course content (${contentResponse.status}).`;
                 console.error(
                   `Course content error for course ${backendCourse.course_id}:`,
                   contentResponse.status,
@@ -295,6 +305,10 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
               }
             } catch (error) {
+              contentErrors[String(backendCourse.course_id)] =
+                error instanceof Error
+                  ? error.message
+                  : "Unable to connect while loading course content.";
               console.error(
                 `Failed loading content for course ${backendCourse.course_id}`,
                 error
@@ -363,6 +377,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       setCourses(frontendCourses);
+      setCourseContentErrors(contentErrors);
 
       console.log("LMS courses loaded:", frontendCourses);
     } catch (error) {
@@ -372,6 +387,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
           ? error.message
           : "Unable to load LMS courses."
       );
+      setCourseContentErrors({});
       setCourses([]);
     } finally {
       setLoadingCourses(false);
@@ -831,6 +847,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
 
         loadingCourses,
         coursesError,
+        courseContentErrors,
         refreshCourses: loadCourses,
 
         searchQuery,

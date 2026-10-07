@@ -7,13 +7,32 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatYouTubeEmbedUrl(url: string): string {
   if (!url) return "";
-  if (url.includes("youtube.com/embed/")) return url;
+
+  let source = url.trim();
+  const iframeSource = source.match(
+    /<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i
+  );
+
+  if (iframeSource?.[1]) {
+    source = iframeSource[1].replace(/&amp;/g, "&");
+  }
+
+  if (source.startsWith("//")) {
+    source = `https:${source}`;
+  }
+
+  if (
+    source.includes("youtube.com/embed/") ||
+    source.includes("youtube-nocookie.com/embed/")
+  ) {
+    return source;
+  }
+
   // Match youtu.be/<id>
-  const matchShort = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  const matchShort = source.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
   if (matchShort) return `https://www.youtube.com/embed/${matchShort[1]}`;
   // Match youtube.com/watch?v=<id>
-  const matchWatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+  const matchWatch = source.match(/[?&]v=([a-zA-Z0-9_-]+)/);
   if (matchWatch) return `https://www.youtube.com/embed/${matchWatch[1]}`;
-  return url;
+  return source;
 }
-

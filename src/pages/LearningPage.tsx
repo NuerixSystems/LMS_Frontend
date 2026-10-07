@@ -2,12 +2,14 @@ import React, { useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
+  AlertCircle,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Video,
   Check,
   Award,
+  Loader2,
 } from "lucide-react";
 import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
@@ -21,6 +23,9 @@ export const LearningPage: React.FC = () => {
 
   const {
     courses,
+    loadingCourses,
+    coursesError,
+    courseContentErrors,
     isEnrolled,
     enrollCourse,
     isLessonCompleted,
@@ -52,11 +57,44 @@ export const LearningPage: React.FC = () => {
     }
   }, [courseId, currentLesson?.id, updateLastAccessedLesson]);
 
+  if (loadingCourses && (!course || !currentLesson)) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center gap-3 text-sm text-slate-500">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        Loading course lesson...
+      </div>
+    );
+  }
+
   if (!course || !currentLesson) {
+    const contentError = courseId
+      ? courseContentErrors[courseId]
+      : undefined;
+
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-        <h2 className="text-xl font-bold text-slate-900">Lesson Not Found</h2>
-        <p className="mt-2 text-sm text-slate-500">The lesson or course requested does not exist.</p>
+        {contentError ? (
+          <>
+            <AlertCircle className="mx-auto h-8 w-8 text-amber-600" />
+            <h2 className="mt-3 text-xl font-bold text-slate-900">
+              Course access required
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">{contentError}</p>
+            <p className="mt-2 text-sm text-slate-500">
+              Your account must be enrolled on the LMS server to view these lessons.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="text-xl font-bold text-slate-900">
+              {coursesError ? "Unable to load course" : "Lesson Not Found"}
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {coursesError ||
+                "The lesson or course requested does not exist."}
+            </p>
+          </>
+        )}
         <div className="mt-5">
           <Link to="/courses">
             <Button variant="outline">Browse Courses</Button>
