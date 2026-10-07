@@ -125,6 +125,30 @@ export const useLMS = () => {
 
 const ENROLLMENTS_KEY = "lms_enrollments";
 const PROGRESS_KEY = "lms_lesson_progress";
+const DEFAULT_COURSE_THUMBNAIL =
+  "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80";
+
+const getStoredEnrolledCourseIds = (): Set<string> => {
+  try {
+    const stored = localStorage.getItem(ENROLLMENTS_KEY);
+    if (!stored) return new Set();
+
+    const enrollments: unknown = JSON.parse(stored);
+    if (!Array.isArray(enrollments)) {
+      console.error("Stored LMS enrollments must be an array.");
+      return new Set();
+    }
+
+    return new Set(
+      enrollments
+        .map((enrollment) => enrollment?.courseId)
+        .filter((courseId): courseId is string => typeof courseId === "string")
+    );
+  } catch (error) {
+    console.error("Failed reading stored LMS enrollments:", error);
+    return new Set();
+  }
+};
 
 // ============================================================
 // PROVIDER
@@ -227,52 +251,55 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
         : Array.isArray(coursesData?.courses)
         ? coursesData.courses
         : [];
+      const enrolledCourseIds = getStoredEnrolledCourseIds();
 
-      // -------- STEP 2: Fetch content for each course --------
+      // -------- STEP 2: Fetch protected content for enrolled courses only --------
       const frontendCourses: Course[] = await Promise.all(
         backendCourses.map(async (backendCourse) => {
           let contents: BackendContent[] = [];
 
-          try {
-            const contentResponse = await fetch(
-              `${LMS_API}/courses/${backendCourse.course_id}/content`,
-              {
-                method: "GET",
-                headers: getAuthHeaders(),
-              }
-            );
-
-            const contentData: BackendCourseContentResponse =
-              await readJson(contentResponse);
-
-            if (!contentResponse.ok) {
-              console.error(
-                `Course content error for course ${backendCourse.course_id}:`,
-                contentResponse.status,
-                contentData
+          if (enrolledCourseIds.has(String(backendCourse.course_id))) {
+            try {
+              const contentResponse = await fetch(
+                `${LMS_API}/courses/${backendCourse.course_id}/content`,
+                {
+                  method: "GET",
+                  headers: getAuthHeaders(),
+                }
               );
-            } else {
-              // Backend can return either:
-              //   [ ... ]  OR  { contents: [ ... ] }  OR  { links: [ ... ] }
-              if (Array.isArray(contentData)) {
-                contents = contentData as unknown as BackendContent[];
-              } else if (
-                contentData &&
-                Array.isArray(contentData.contents)
-              ) {
-                contents = contentData.contents;
-              } else if (
-                contentData &&
-                Array.isArray((contentData as any).links)
-              ) {
-                contents = (contentData as any).links;
+
+              const contentData: BackendCourseContentResponse =
+                await readJson(contentResponse);
+
+              if (!contentResponse.ok) {
+                console.error(
+                  `Course content error for course ${backendCourse.course_id}:`,
+                  contentResponse.status,
+                  contentData
+                );
+              } else {
+                // Backend can return either:
+                //   [ ... ]  OR  { contents: [ ... ] }  OR  { links: [ ... ] }
+                if (Array.isArray(contentData)) {
+                  contents = contentData as unknown as BackendContent[];
+                } else if (
+                  contentData &&
+                  Array.isArray(contentData.contents)
+                ) {
+                  contents = contentData.contents;
+                } else if (
+                  contentData &&
+                  Array.isArray((contentData as any).links)
+                ) {
+                  contents = (contentData as any).links;
+                }
               }
+            } catch (error) {
+              console.error(
+                `Failed loading content for course ${backendCourse.course_id}`,
+                error
+              );
             }
-          } catch (error) {
-            console.error(
-              `Failed loading content for course ${backendCourse.course_id}`,
-              error
-            );
           }
 
           // -------- Convert backend contents -> frontend lessons --------
@@ -315,7 +342,8 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
             title: backendCourse.title || "Untitled Course",
             description: backendCourse.description || "",
             shortDescription: backendCourse.description || "",
-            thumbnail: backendCourse.thumbnail_url || "",
+            thumbnail:
+              backendCourse.thumbnail_url || DEFAULT_COURSE_THUMBNAIL,
             category: "Course",
             level: "All Levels",
             rating: 0,
@@ -477,9 +505,16 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
         progressPercentage: 0,
       };
 
+      const pendingCoursesRequest = coursesRequestRef.current;
       saveEnrollments([...enrollments, newEnrollment]);
+
+      if (pendingCoursesRequest) {
+        void pendingCoursesRequest.then(() => loadCourses());
+      } else {
+        void loadCourses();
+      }
     },
-    [isEnrolled, courses, user, enrollments, saveEnrollments]
+    [isEnrolled, courses, user, enrollments, saveEnrollments, loadCourses]
   );
 
   // ----------------------------------------------------------
@@ -621,6 +656,17 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updateLastAccessedLesson = useCallback(
     (courseId: string, lessonId: string) => {
+      const currentEnrollment = enrollments.find(
+        (enrollment) => enrollment.courseId === courseId
+      );
+
+      if (
+        !currentEnrollment ||
+        currentEnrollment.lastAccessedLessonId === lessonId
+      ) {
+        return;
+      }
+
       const updated = enrollments.map((enrollment) => {
         if (enrollment.courseId === courseId) {
           return {

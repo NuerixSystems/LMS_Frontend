@@ -45,11 +45,13 @@ export const HomePage: React.FC = () => {
       <main className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
       <section className="relative isolate overflow-hidden rounded-2xl bg-[#123b7a] text-white">
         <div className="absolute inset-y-0 right-0 -z-10 hidden w-[56%] md:block">
-          <img
-            src={featuredCourse?.thumbnail}
-            alt=""
-            className="h-full w-full object-cover opacity-75"
-          />
+          {featuredCourse?.thumbnail && (
+            <img
+              src={featuredCourse.thumbnail}
+              alt=""
+              className="h-full w-full object-cover opacity-75"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-r from-[#123b7a] via-[#123b7a]/55 to-transparent" />
         </div>
 
@@ -187,7 +189,7 @@ export const HomePage: React.FC = () => {
             >
               <div className="aspect-[16/9] overflow-hidden bg-slate-100">
                 <img
-                  src={course.thumbnail}
+                  src={course.thumbnail || undefined}
                   alt=""
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                   loading="lazy"
