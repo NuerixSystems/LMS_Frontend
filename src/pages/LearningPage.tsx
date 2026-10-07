@@ -1,4 +1,3 @@
-// src/pages/LearningPage.tsx
 import React, { useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
@@ -9,62 +8,15 @@ import {
   Video,
   Check,
   Award,
-  AlertCircle,
 } from "lucide-react";
 import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/progress";
 import { Badge } from "../components/ui/badge";
-
-// ============================================================
-// YouTube URL formatter helper
-// ============================================================
-
-const formatYouTubeEmbedUrl = (url: string): string => {
-  if (!url) return "";
-
-  // Already an embed URL
-  if (url.includes("/embed/")) return url;
-
-  let videoId = "";
-
-  try {
-    const parsed = new URL(url);
-
-    if (
-      parsed.hostname === "youtube.com" ||
-      parsed.hostname.endsWith(".youtube.com") ||
-      parsed.hostname === "youtube-nocookie.com"
-    ) {
-      if (parsed.pathname.startsWith("/embed/")) {
-        videoId = parsed.pathname.replace("/embed/", "").split("/")[0];
-      } else if (parsed.pathname.startsWith("/shorts/")) {
-        videoId = parsed.pathname.replace("/shorts/", "").split("/")[0];
-      } else {
-        videoId = parsed.searchParams.get("v") || "";
-      }
-    } else if (parsed.hostname === "youtu.be") {
-      videoId = parsed.pathname.replace(/^\/+/, "").split("/")[0];
-    }
-  } catch {
-    // Not a full URL — check for raw video ID
-    if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
-      videoId = url;
-    }
-  }
-
-  if (videoId) {
-    return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0`;
-  }
-
-  return url;
-};
+import { formatYouTubeEmbedUrl } from "../lib/utils";
 
 export const LearningPage: React.FC = () => {
-  const { courseId, lessonId } = useParams<{
-    courseId: string;
-    lessonId: string;
-  }>();
+  const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
   const navigate = useNavigate();
 
   const {
@@ -79,19 +31,19 @@ export const LearningPage: React.FC = () => {
     getPrevLessonId,
   } = useLMS();
 
-  const course = courses.find((c) => String(c.id) === String(courseId));
+  const course = courses.find((c) => c.id === courseId);
 
   // Auto enroll if accessing directly
   useEffect(() => {
-    if (course && courseId && !isEnrolled(courseId)) {
+    if (courseId && !isEnrolled(courseId)) {
       enrollCourse(courseId);
     }
-  }, [course, courseId, isEnrolled, enrollCourse]);
+  }, [courseId, isEnrolled, enrollCourse]);
 
   // Find current lesson
   const allLessons = course?.modules.flatMap((m) => m.lessons) || [];
   const currentLesson =
-    allLessons.find((l) => String(l.id) === String(lessonId)) || allLessons[0];
+    allLessons.find((l) => l.id === lessonId) || allLessons[0];
 
   // Sync last accessed
   useEffect(() => {
@@ -103,19 +55,11 @@ export const LearningPage: React.FC = () => {
   if (!course || !currentLesson) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-        <AlertCircle className="mx-auto h-12 w-12 text-amber-500" />
-        <h2 className="mt-3 text-xl font-bold text-slate-900">
-          Lesson Not Found
-        </h2>
-        <p className="mt-2 text-sm text-slate-500">
-          The lesson or course requested does not exist or is still loading.
-        </p>
-        <div className="mt-5 flex justify-center gap-3">
+        <h2 className="text-xl font-bold text-slate-900">Lesson Not Found</h2>
+        <p className="mt-2 text-sm text-slate-500">The lesson or course requested does not exist.</p>
+        <div className="mt-5">
           <Link to="/courses">
             <Button variant="outline">Browse Courses</Button>
-          </Link>
-          <Link to="/dashboard">
-            <Button>Dashboard</Button>
           </Link>
         </div>
       </div>
@@ -141,7 +85,7 @@ export const LearningPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in-50 duration-300">
-      {/* Breadcrumb */}
+      {/* Top Breadcrumb & Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
         <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500">
           <Link
@@ -152,9 +96,7 @@ export const LearningPage: React.FC = () => {
             <span>Course Details</span>
           </Link>
           <span>/</span>
-          <span className="text-slate-800 font-semibold truncate max-w-xs">
-            {course.title}
-          </span>
+          <span className="text-slate-800 font-semibold truncate max-w-xs">{course.title}</span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -173,9 +115,11 @@ export const LearningPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Main Grid: Left Video Player, Right Sidebar Curriculum */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left */}
+        {/* Left Column: Player & Lesson info */}
         <div className="lg:col-span-8 space-y-5">
+          {/* Responsive Video Container */}
           <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-lg">
             {currentLesson.videoUrl ? (
               <iframe
@@ -188,18 +132,13 @@ export const LearningPage: React.FC = () => {
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#173e39] px-6 text-center text-white">
                 <Video className="h-8 w-8 text-[#c5e7a7]" aria-hidden="true" />
-                <p className="text-sm font-semibold">
-                  Video lesson coming soon
-                </p>
-                <p className="max-w-md text-xs leading-5 text-white/75">
-                  Read the lesson notes below, then mark this lesson complete
-                  when you are ready.
-                </p>
+                <p className="text-sm font-semibold">Video lesson coming soon</p>
+                <p className="max-w-md text-xs leading-5 text-white/75">Read the lesson notes below, then mark this lesson complete when you are ready.</p>
               </div>
             )}
           </div>
 
-          {/* Controls */}
+          {/* Controls & Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
             <Button
               onClick={() => toggleLessonComplete(course.id, currentLesson.id)}
@@ -210,9 +149,7 @@ export const LearningPage: React.FC = () => {
               {isCompleted ? (
                 <>
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  <span className="text-emerald-700 font-semibold">
-                    Completed (Click to Undo)
-                  </span>
+                  <span className="text-emerald-700 font-semibold">Completed (Click to Undo)</span>
                 </>
               ) : (
                 <>
@@ -262,32 +199,25 @@ export const LearningPage: React.FC = () => {
               {currentLesson.description}
             </p>
 
-            {course.instructor && (
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-3">
-                <img
-                  src={course.instructorAvatar}
-                  alt={course.instructor}
-                  className="h-9 w-9 rounded-full object-cover border border-slate-200"
-                />
-                <div>
-                  <p className="text-xs font-semibold text-slate-900">
-                    {course.instructor}
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    {course.instructorTitle}
-                  </p>
-                </div>
+            {/* Instructor snippet */}
+            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-3">
+              <img
+                src={course.instructorAvatar}
+                alt={course.instructor}
+                className="h-9 w-9 rounded-full object-cover border border-slate-200"
+              />
+              <div>
+                <p className="text-xs font-semibold text-slate-900">{course.instructor}</p>
+                <p className="text-[11px] text-slate-400">{course.instructorTitle}</p>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
-        {/* Right Sidebar */}
+        {/* Right Column: Sticky Curriculum Sidebar */}
         <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden sticky top-20">
           <div className="bg-slate-50 p-4 border-b border-slate-200">
-            <h3 className="font-bold text-slate-900 text-sm">
-              Course Curriculum
-            </h3>
+            <h3 className="font-bold text-slate-900 text-sm">Course Curriculum</h3>
             <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
               <span>{allLessons.length} lessons</span>
               <span>{courseProgress}% completed</span>
@@ -297,6 +227,7 @@ export const LearningPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Lesson List with Modules */}
           <div className="max-h-[calc(100vh-280px)] overflow-y-auto divide-y divide-slate-100">
             {course.modules.map((module) => (
               <div key={module.id} className="py-2">
@@ -311,9 +242,7 @@ export const LearningPage: React.FC = () => {
                     return (
                       <div
                         key={lesson.id}
-                        onClick={() =>
-                          navigate(`/courses/${course.id}/learn/${lesson.id}`)
-                        }
+                        onClick={() => navigate(`/courses/${course.id}/learn/${lesson.id}`)}
                         className={`flex items-center justify-between px-4 py-2.5 cursor-pointer text-xs transition-colors ${
                           isActive
                             ? "bg-indigo-50/80 font-semibold text-indigo-900 border-l-4 border-indigo-600"
@@ -354,5 +283,3 @@ export const LearningPage: React.FC = () => {
     </div>
   );
 };
-
-export default LearningPage;

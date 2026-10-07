@@ -1,4 +1,3 @@
-// src/pages/CourseDetailsPage.tsx
 import React from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
@@ -12,7 +11,6 @@ import {
   Check,
   Award,
   Users,
-  AlertCircle,
 } from "lucide-react";
 import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
@@ -31,23 +29,19 @@ export const CourseDetailsPage: React.FC = () => {
     isLessonCompleted,
   } = useLMS();
 
-  const course = courses.find((c) => String(c.id) === String(courseId));
+  const course = courses.find((c) => c.id === courseId);
 
   if (!course) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-        <AlertCircle className="mx-auto h-12 w-12 text-amber-500" />
-        <h2 className="mt-3 text-xl font-bold text-slate-900">
-          Course Not Found
-        </h2>
+        <h2 className="text-xl font-bold text-slate-900">Course Not Found</h2>
         <p className="mt-2 text-sm text-slate-500">
-          The requested course could not be located. It may still be loading.
+          The requested course could not be located.
         </p>
-        <div className="mt-5 flex justify-center gap-3">
+        <div className="mt-5">
           <Link to="/courses">
             <Button variant="outline">Browse All Courses</Button>
           </Link>
-          <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
         </div>
       </div>
     );
@@ -56,10 +50,6 @@ export const CourseDetailsPage: React.FC = () => {
   const enrolled = isEnrolled(course.id);
   const progress = getCourseProgress(course.id);
   const enrollment = getEnrollment(course.id);
-
-  const totalLessons =
-    course.totalLessons ||
-    course.modules.reduce((sum, m) => sum + m.lessons.length, 0);
 
   const handleEnrollOrContinue = () => {
     if (!enrolled) {
@@ -86,6 +76,7 @@ export const CourseDetailsPage: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in-50 duration-300">
+      {/* Back button */}
       <div>
         <button
           onClick={() => navigate(-1)}
@@ -96,26 +87,23 @@ export const CourseDetailsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Hero */}
+      {/* Hero Header Card */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          {/* Left / Info */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="default" className="font-medium">
-                {course.category || "Course"}
+                {course.category}
               </Badge>
               <Badge variant="secondary" className="font-medium">
-                {course.level || "All Levels"}
+                {course.level}
               </Badge>
-              {course.rating > 0 && (
-                <div className="flex items-center gap-1 text-xs text-amber-500 font-semibold ml-2">
-                  <Star className="h-4 w-4 fill-amber-400" />
-                  <span>{course.rating}</span>
-                  <span className="text-slate-400 font-normal">
-                    ({course.enrolledCount} students)
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center gap-1 text-xs text-amber-500 font-semibold ml-2">
+                <Star className="h-4 w-4 fill-amber-400" />
+                <span>{course.rating}</span>
+                <span className="text-slate-400 font-normal">({course.enrolledCount} students)</span>
+              </div>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 leading-snug">
@@ -126,14 +114,15 @@ export const CourseDetailsPage: React.FC = () => {
               {course.description}
             </p>
 
+            {/* Quick Metadata */}
             <div className="flex flex-wrap items-center gap-6 pt-2 text-xs sm:text-sm text-slate-600 border-t border-slate-100">
               <div className="flex items-center gap-1.5">
                 <Clock className="h-4 w-4 text-slate-400" />
-                <span>{course.duration || "Self-paced"}</span>
+                <span>{course.duration} Total Duration</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <BookOpen className="h-4 w-4 text-slate-400" />
-                <span>{totalLessons} Lessons</span>
+                <span>{course.totalLessons} Lessons</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Users className="h-4 w-4 text-slate-400" />
@@ -141,38 +130,28 @@ export const CourseDetailsPage: React.FC = () => {
               </div>
             </div>
 
-            {course.instructor && (
-              <div className="flex items-center gap-3 pt-3">
-                <img
-                  src={course.instructorAvatar}
-                  alt={course.instructor}
-                  className="h-11 w-11 rounded-full object-cover border border-slate-200"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {course.instructor}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {course.instructorTitle}
-                  </p>
-                </div>
+            {/* Instructor Details */}
+            <div className="flex items-center gap-3 pt-3">
+              <img
+                src={course.instructorAvatar}
+                alt={course.instructor}
+                className="h-11 w-11 rounded-full object-cover border border-slate-200"
+              />
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{course.instructor}</p>
+                <p className="text-xs text-slate-500">{course.instructorTitle}</p>
               </div>
-            )}
+            </div>
           </div>
 
+          {/* Right / Thumbnail & Action Card */}
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
             <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-slate-200 shadow-inner">
-              {course.thumbnail ? (
-                <img
-                  src={course.thumbnail}
-                  alt={course.title}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-600 to-violet-600">
-                  <BookOpen className="h-14 w-14 text-white/80" />
-                </div>
-              )}
+              <img
+                src={course.thumbnail}
+                alt={course.title}
+                className="h-full w-full object-cover"
+              />
               <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/95 text-indigo-600 shadow-md">
                   <Play className="h-6 w-6 fill-indigo-600 ml-0.5" />
@@ -196,9 +175,7 @@ export const CourseDetailsPage: React.FC = () => {
               className="w-full font-semibold shadow-xs"
             >
               <Play className="h-4 w-4 fill-white mr-1.5" />
-              <span>
-                {enrolled ? "Continue Learning" : "Enroll Now & Start"}
-              </span>
+              <span>{enrolled ? "Continue Learning" : "Enroll Now & Start"}</span>
             </Button>
 
             <p className="text-center text-[11px] text-slate-400">
@@ -208,16 +185,13 @@ export const CourseDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Curriculum */}
+      {/* Curriculum Section */}
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-              Course Curriculum
-            </h2>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Course Curriculum</h2>
             <p className="text-xs text-slate-500">
-              {course.modules.length} Modules • {totalLessons} Lessons • Click
-              any lesson to watch
+              {course.modules.length} Modules • {course.totalLessons} Lessons • Click any lesson to watch
             </p>
           </div>
           {enrolled && progress === 100 && (
@@ -228,89 +202,80 @@ export const CourseDetailsPage: React.FC = () => {
           )}
         </div>
 
+        {/* Modules & Lessons */}
         <div className="space-y-4">
           {course.modules.map((module) => (
             <div
               key={module.id}
               className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs"
             >
+              {/* Module Header */}
               <div className="bg-slate-50/80 px-5 py-3.5 border-b border-slate-200/80 flex items-center justify-between">
                 <h3 className="font-semibold text-sm text-slate-800">
                   {module.title}
                 </h3>
                 <span className="text-xs text-slate-500 font-medium">
-                  {module.lessons.length}{" "}
-                  {module.lessons.length === 1 ? "lesson" : "lessons"}
+                  {module.lessons.length} {module.lessons.length === 1 ? "lesson" : "lessons"}
                 </span>
               </div>
 
+              {/* Module Lessons */}
               <div className="divide-y divide-slate-100">
-                {module.lessons.length === 0 ? (
-                  <div className="px-5 py-6 text-sm text-slate-500 text-center">
-                    No lessons available yet.
-                  </div>
-                ) : (
-                  module.lessons.map((lesson) => {
-                    const completed = isLessonCompleted(course.id, lesson.id);
+                {module.lessons.map((lesson) => {
+                  const completed = isLessonCompleted(course.id, lesson.id);
 
-                    return (
-                      <div
-                        key={lesson.id}
-                        onClick={() => handleLessonClick(lesson.id)}
-                        className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors group"
-                      >
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                              completed
-                                ? "bg-emerald-100 text-emerald-600"
-                                : "bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600"
-                            }`}
-                          >
-                            {completed ? (
-                              <Check className="h-4 w-4 stroke-[2.5]" />
-                            ) : (
-                              <Video className="h-4 w-4" />
-                            )}
-                          </div>
-
-                          <div className="min-w-0">
-                            <p
-                              className={`text-sm font-medium line-clamp-1 ${
-                                completed
-                                  ? "text-slate-700"
-                                  : "text-slate-900 group-hover:text-indigo-600"
-                              }`}
-                            >
-                              {lesson.title}
-                            </p>
-                            <p className="text-xs text-slate-400 line-clamp-1">
-                              {lesson.description || lesson.duration}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 shrink-0 ml-4">
-                          <span className="text-xs text-slate-500 font-mono">
-                            {lesson.duration}
-                          </span>
+                  return (
+                    <div
+                      key={lesson.id}
+                      onClick={() => handleLessonClick(lesson.id)}
+                      className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors group"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                            completed
+                              ? "bg-emerald-100 text-emerald-600"
+                              : "bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600"
+                          }`}
+                        >
                           {completed ? (
-                            <Badge
-                              variant="success"
-                              className="text-[10px] py-0 px-2"
-                            >
-                              Done
-                            </Badge>
+                            <Check className="h-4 w-4 stroke-[2.5]" />
                           ) : (
-                            <span className="text-xs text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                              Play
-                            </span>
+                            <Video className="h-4 w-4" />
                           )}
                         </div>
+
+                        <div className="min-w-0">
+                          <p
+                            className={`text-sm font-medium line-clamp-1 ${
+                              completed ? "text-slate-700" : "text-slate-900 group-hover:text-indigo-600"
+                            }`}
+                          >
+                            {lesson.title}
+                          </p>
+                          <p className="text-xs text-slate-400 line-clamp-1">
+                            {lesson.description}
+                          </p>
+                        </div>
                       </div>
-                    );
-                  })
-                )}
+
+                      <div className="flex items-center gap-3 shrink-0 ml-4">
+                        <span className="text-xs text-slate-500 font-mono">
+                          {lesson.duration}
+                        </span>
+                        {completed ? (
+                          <Badge variant="success" className="text-[10px] py-0 px-2">
+                            Done
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                            Play
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -319,5 +284,3 @@ export const CourseDetailsPage: React.FC = () => {
     </div>
   );
 };
-
-export default CourseDetailsPage;
