@@ -8,8 +8,8 @@
  * Production:
  *   https://crm-dkc2.onrender.com
  *
- * Development:
- *   http://127.0.0.1:8000
+ * Development uses the configured API URL; .env.development points to
+ * the hosted backend unless overridden.
  */
 
 const PRODUCTION_API_URL = "https://crm-dkc2.onrender.com";

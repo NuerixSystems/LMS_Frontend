@@ -14,6 +14,7 @@ import {
 
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { LMS_API } from "../config";
 
 // ============================================================
 // TYPES
@@ -44,13 +45,6 @@ interface CourseContent {
 interface CourseWithContent extends BackendCourse {
   contents?: CourseContent[];
 }
-
-// ============================================================
-// API URL
-// ============================================================
-
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 // ============================================================
 // HELPER
@@ -116,7 +110,7 @@ export const CoursesPage: React.FC = () => {
       }
 
       const response = await fetch(
-        `${API_URL}/api/lms/courses`,
+        `${LMS_API}/courses`,
         {
           method: "GET",
           headers: {
@@ -197,7 +191,7 @@ export const CoursesPage: React.FC = () => {
       }
 
       const response = await fetch(
-        `${API_URL}/api/lms/courses/${course.course_id}/content`,
+        `${LMS_API}/courses/${course.course_id}/content`,
         {
           method: "GET",
           headers: {

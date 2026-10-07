@@ -19,6 +19,7 @@ export interface Course {
   id: string;
   title: string;
   description: string;
+  shortDescription?: string;
   thumbnail: string;
   category: string;
   level: string;
@@ -26,6 +27,7 @@ export interface Course {
   enrolledCount: number;
   duration: string;
   totalLessons?: number;
+  status?: string | null;
   instructor: string;
   instructorTitle: string;
   instructorAvatar: string;

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   BookOpen,
@@ -8,47 +8,12 @@ import {
   GraduationCap,
   CheckCircle2,
   Loader2,
-  AlertCircle,
 } from "lucide-react";
 
 import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/progress";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  "http://127.0.0.1:8000";
-
-interface BackendCourse {
-  course_id: number;
-  tenant_id?: number;
-  title: string;
-  description?: string | null;
-  thumbnail_url?: string | null;
-  price?: number | string | null;
-  status?: string;
-  total_lessons?: number;
-  contents?: BackendCourseContent[];
-}
-
-interface BackendCourseContent {
-  content_id: number;
-  course_id: number;
-  title: string;
-  description?: string | null;
-  video_url?: string | null;
-  url?: string | null;
-  sort_order?: number;
-  display_order?: number;
-  is_preview?: boolean;
-  status?: string;
-}
-
-interface CourseContentResponse extends BackendCourse {
-  contents: BackendCourseContent[];
-  total_lessons: number;
-}
+import { API_URL } from "../config";
 
 interface DashboardCourse {
   id: string;
@@ -57,25 +22,6 @@ interface DashboardCourse {
   thumbnail: string;
   totalLessons: number;
 }
-
-const getAuthToken = (): string | null => {
-  const possibleKeys = [
-    "access_token",
-    "token",
-    "lms_access_token",
-    "lms_token",
-  ];
-
-  for (const key of possibleKeys) {
-    const value = localStorage.getItem(key);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return null;
-};
 
 const getImageUrl = (url?: string | null): string => {
   if (!url) {
@@ -86,283 +32,39 @@ const getImageUrl = (url?: string | null): string => {
     return url;
   }
 
-  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
-};
-
-const formatDuration = (minutes: number): string => {
-  if (!minutes || minutes <= 0) {
-    return "Self paced";
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-
-  if (hours > 0 && mins > 0) {
-    return `${hours}h ${mins}m`;
-  }
-
-  if (hours > 0) {
-    return `${hours}h`;
-  }
-
-  return `${mins}m`;
+  return `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 };
 
 export const DashboardPage: React.FC = () => {
   const {
     courses,
+    loadingCourses,
+    coursesError,
     isEnrolled,
     getCourseProgress,
-    getEnrollment,
   } = useLMS();
 
-  const [backendCourses, setBackendCourses] = useState<BackendCourse[]>([]);
-  const [courseContents, setCourseContents] = useState<
-    Record<number, CourseContentResponse>
-  >({});
-  const [loading, setLoading] = useState(true);
-  const [contentLoading, setContentLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  /*
-   * ============================================================
-   * LOAD COURSES FROM LMS BACKEND
-   * ============================================================
-   */
-
-  useEffect(() => {
-    const loadCourses = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const token = getAuthToken();
-
-        const headers: HeadersInit = {
-          Accept: "application/json",
-        };
-
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-        }
-
-        const response = await fetch(
-          `${API_BASE_URL}/api/lms/courses`,
-          {
-            method: "GET",
-            headers,
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to load courses (${response.status})`
-          );
-        }
-
-        const data = await response.json();
-
-        /*
-         * Backend may return:
-         *
-         * [
-         *   {...},
-         *   {...}
-         * ]
-         *
-         * OR
-         *
-         * {
-         *   courses: [...]
-         * }
-         */
-
-        const receivedCourses: BackendCourse[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.courses)
-          ? data.courses
-          : [];
-
-        console.log(
-          "=============================================="
-        );
-        console.log("LMS DASHBOARD COURSES");
-        console.log(
-          "=============================================="
-        );
-        console.log(
-          "Total backend courses:",
-          receivedCourses.length
-        );
-
-        receivedCourses.forEach((course) => {
-          console.log(
-            `Course ${course.course_id}: ${course.title} | ${course.status}`
-          );
-        });
-
-        setBackendCourses(receivedCourses);
-      } catch (err) {
-        console.error("Dashboard course loading error:", err);
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load LMS courses."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadCourses();
-  }, []);
-
-  /*
-   * ============================================================
-   * LOAD COURSE CONTENT
-   * ============================================================
-   *
-   * Important:
-   * Your lessons are stored in:
-   *
-   * lms_dev.course_links
-   *
-   * Therefore we use:
-   *
-   * GET /api/lms/courses/{course_id}/content
-   *
-   * instead of expecting a lesson table.
-   */
-
-  useEffect(() => {
-    const loadCourseContents = async () => {
-      if (!backendCourses.length) {
-        return;
-      }
-
-      try {
-        setContentLoading(true);
-
-        const token = getAuthToken();
-
-        const headers: HeadersInit = {
-          Accept: "application/json",
-        };
-
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-        }
-
-        const contentMap: Record<
-          number,
-          CourseContentResponse
-        > = {};
-
-        for (const course of backendCourses) {
-          try {
-            const response = await fetch(
-              `${API_BASE_URL}/api/lms/courses/${course.course_id}/content`,
-              {
-                method: "GET",
-                headers,
-              }
-            );
-
-            if (!response.ok) {
-              console.warn(
-                `Unable to load content for course ${course.course_id}`
-              );
-
-              continue;
-            }
-
-            const data: CourseContentResponse =
-              await response.json();
-
-            contentMap[course.course_id] = data;
-
-            console.log(
-              `Course ${course.course_id} lessons:`,
-              data.contents?.length || 0
-            );
-          } catch (courseError) {
-            console.error(
-              `Content loading failed for course ${course.course_id}:`,
-              courseError
-            );
-          }
-        }
-
-        setCourseContents(contentMap);
-      } finally {
-        setContentLoading(false);
-      }
-    };
-
-    loadCourseContents();
-  }, [backendCourses]);
-
-  /*
-   * ============================================================
-   * BACKEND COURSE DATA → DASHBOARD DATA
-   * ============================================================
-   */
-
   const dashboardCourses: DashboardCourse[] = useMemo(() => {
-    return backendCourses
+    return courses
       .filter(
         (course) =>
           !course.status ||
           course.status.toLowerCase() === "active"
       )
       .map((course) => {
-        const content =
-          courseContents[course.course_id];
-
         return {
-          id: String(course.course_id),
-
-          title: course.title,
-
-          description:
-            course.description ||
-            "Explore this course and start learning.",
-
-          thumbnail: getImageUrl(
-            course.thumbnail_url
-          ),
-
-          totalLessons:
-            content?.total_lessons ??
-            content?.contents?.length ??
-            course.total_lessons ??
-            0,
-        };
-      });
-  }, [backendCourses, courseContents]);
-
-  /*
-   * ============================================================
-   * FALLBACK
-   * ============================================================
-   *
-   * If backend is temporarily unavailable, use LMS context
-   * only when it already contains courses.
-   */
-
-  const visibleCourses =
-    dashboardCourses.length > 0
-      ? dashboardCourses
-      : courses.map((course) => ({
           id: String(course.id),
           title: course.title,
           description:
-            course.shortDescription ||
+            course.description ||
             "Explore this course and start learning.",
-          thumbnail: course.thumbnail,
-          totalLessons: course.totalLessons || 0,
-        }));
+          thumbnail: getImageUrl(course.thumbnail),
+          totalLessons: course.totalLessons ?? 0,
+        };
+      });
+  }, [courses]);
+
+  const visibleCourses = dashboardCourses;
 
   /*
    * ============================================================
@@ -405,7 +107,7 @@ export const DashboardPage: React.FC = () => {
    * ============================================================
    */
 
-  if (loading) {
+  if (loadingCourses) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -445,17 +147,15 @@ export const DashboardPage: React.FC = () => {
           ERROR
       ======================================================= */}
 
-      {error && (
+      {coursesError && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-
           <div>
             <p className="text-sm font-semibold text-red-800">
               Unable to load backend courses
             </p>
 
             <p className="mt-1 text-xs text-red-700">
-              {error}
+              {coursesError}
             </p>
           </div>
         </div>
@@ -667,22 +367,7 @@ export const DashboardPage: React.FC = () => {
                 course.id
               );
 
-              const backendCourse = backendCourses.find(
-                (item) =>
-                  String(item.course_id) === course.id
-              );
-
-              const backendContent =
-                backendCourse &&
-                courseContents[
-                  backendCourse.course_id
-                ];
-
-              const lessonCount =
-                backendContent?.total_lessons ??
-                backendContent?.contents?.length ??
-                course.totalLessons ??
-                0;
+              const lessonCount = course.totalLessons;
 
               return (
                 <div
@@ -785,13 +470,6 @@ export const DashboardPage: React.FC = () => {
           CONTENT STATUS
       ======================================================= */}
 
-      {contentLoading && (
-        <div className="flex items-center justify-center gap-2 py-3 text-xs text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" />
-
-          Loading course lessons...
-        </div>
-      )}
     </div>
   );
 };

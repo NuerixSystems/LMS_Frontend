@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
   useCallback,
+  useRef,
 } from "react";
 
 import { Course, Enrollment, LessonProgress } from "../types";
@@ -28,6 +29,7 @@ interface LMSContextType {
   lessonProgress: LessonProgress[];
 
   loadingCourses: boolean;
+  coursesError: string;
   refreshCourses: () => Promise<void>;
 
   searchQuery: string;
@@ -145,6 +147,8 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
   const [selectedCategory, setSelectedCategory] = useState("All");
 
   const [loadingCourses, setLoadingCourses] = useState(true);
+  const [coursesError, setCoursesError] = useState("");
+  const coursesRequestRef = useRef<Promise<void> | null>(null);
 
   // ----------------------------------------------------------
   // AUTH TOKEN
@@ -191,7 +195,8 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
   // LOAD COURSES + CONTENT FROM BACKEND
   // ----------------------------------------------------------
 
-  const loadCourses = useCallback(async () => {
+  const loadCoursesRequest = useCallback(async () => {
+    setCoursesError("");
     setLoadingCourses(true);
 
     try {
@@ -208,6 +213,10 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
           "LMS courses API error:",
           coursesResponse.status,
           coursesData
+        );
+        setCoursesError(
+          coursesData?.detail ||
+            `Failed to load LMS courses (${coursesResponse.status}).`
         );
         setCourses([]);
         return;
@@ -305,6 +314,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
             id: String(backendCourse.course_id),
             title: backendCourse.title || "Untitled Course",
             description: backendCourse.description || "",
+            shortDescription: backendCourse.description || "",
             thumbnail: backendCourse.thumbnail_url || "",
             category: "Course",
             level: "All Levels",
@@ -312,6 +322,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
             enrolledCount: 0,
             duration: "Self-paced",
             totalLessons: lessons.length,
+            status: backendCourse.status,
             instructor: "Jayakumar",
             instructorTitle: "Instructor",
             instructorAvatar:
@@ -328,11 +339,30 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
       console.log("LMS courses loaded:", frontendCourses);
     } catch (error) {
       console.error("Failed loading LMS courses:", error);
+      setCoursesError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load LMS courses."
+      );
       setCourses([]);
     } finally {
       setLoadingCourses(false);
     }
   }, [getAuthHeaders]);
+
+  const loadCourses = useCallback(() => {
+    if (coursesRequestRef.current) {
+      return coursesRequestRef.current;
+    }
+
+    const sharedRequest = loadCoursesRequest().finally(() => {
+      if (coursesRequestRef.current === sharedRequest) {
+        coursesRequestRef.current = null;
+      }
+    });
+    coursesRequestRef.current = sharedRequest;
+    return sharedRequest;
+  }, [loadCoursesRequest]);
 
   // ----------------------------------------------------------
   // LOAD COURSES WHEN USER IS AVAILABLE
@@ -341,6 +371,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (!user) {
       setCourses([]);
+      setCoursesError("");
       setLoadingCourses(false);
       return;
     }
@@ -753,6 +784,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({
         lessonProgress,
 
         loadingCourses,
+        coursesError,
         refreshCourses: loadCourses,
 
         searchQuery,

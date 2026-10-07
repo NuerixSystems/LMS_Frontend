@@ -12,27 +12,7 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 import type { User } from "../../types";
-
-/**
- * =========================================================
- * PRODUCTION API CONFIGURATION
- * =========================================================
- *
- * Vite environment variables are injected at BUILD TIME.
- *
- * Production:
- * VITE_API_URL=https://crm-dkc2.onrender.com
- *
- * Local development:
- * VITE_API_URL=http://127.0.0.1:8000
- *
- * IMPORTANT:
- * Do NOT silently fall back to localhost in production.
- */
-const API_URL = (
-  import.meta.env.VITE_API_URL ||
-  "https://crm-dkc2.onrender.com"
-).replace(/\/+$/, "");
+import { API_URL } from "../../config";
 
 /**
  * =========================================================
@@ -141,16 +121,10 @@ export const LoginPage: React.FC = () => {
        * BACKEND REQUEST
        * ===================================================
        *
-       * Production endpoint:
-       *
-       * https://crm-dkc2.onrender.com/api/lms/auth/google
-       *
-       * Local endpoint:
-       *
-       * http://127.0.0.1:8000/api/lms/auth/google
+       * The API host comes from the shared frontend configuration.
        */
       const response = await fetch(
-        "https://crm-dkc2.onrender.com/api/lms/auth/google",
+        `${API_URL}/api/lms/auth/google`,
         {
           method: "POST",
 
