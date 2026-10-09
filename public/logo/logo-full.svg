@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" fill="none">
+  <!-- Cube icon -->
+  <g transform="translate(10, 10)">
+    <path d="M40 0 L75 20 L40 40 L5 20 Z" fill="#5EEAD4"/>
+    <path d="M5 20 L40 40 L40 80 L5 60 Z" fill="#3730A3"/>
+    <path d="M75 20 L40 40 L40 80 L75 60 Z" fill="#4F46E5"/>
+    <path d="M15 32 L32 41 M15 40 L32 49 M15 48 L32 57" 
+          stroke="#A5B4FC" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M52 42 L52 60 L66 51 Z" fill="#FFFFFF"/>
+  </g>
+  
+  <!-- Text "Course" -->
+  <text x="105" y="65" font-family="Inter, -apple-system, sans-serif" 
+        font-size="42" font-weight="800" fill="#0F172A" letter-spacing="-1.5">
+    Course
+  </text>
+  
+  <!-- Text "Box" -->
+  <text x="265" y="65" font-family="Inter, -apple-system, sans-serif" 
+        font-size="42" font-weight="800" fill="#4F46E5" letter-spacing="-1.5">
+    Box
+  </text>
+</svg>

@@ -690,12 +690,12 @@ export const CoursesPage: React.FC = () => {
         : "";
 
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="lms-course-player-page min-h-screen bg-slate-50">
         {/* ====================================================
             TOP COURSE HEADER
             ==================================================== */}
         <div className="border-b border-slate-200 bg-white">
-          <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6">
+          <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
             <button
               type="button"
               onClick={() => {
@@ -758,8 +758,8 @@ export const CoursesPage: React.FC = () => {
         {/* ====================================================
             LMS PLAYER LAYOUT
             ==================================================== */}
-        <div className="mx-auto max-w-[1500px] px-0 sm:px-4 lg:px-6">
-          <div className="grid min-h-[calc(100vh-180px)] grid-cols-1 lg:grid-cols-[1fr_360px] lg:gap-5">
+        <div className="mx-auto w-full max-w-[1600px] px-0 sm:px-4 lg:px-8">
+          <div className="grid min-h-[calc(100vh-180px)] grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:gap-7">
             {/* ==================================================
                 MAIN VIDEO AREA
                 ================================================== */}
@@ -1155,7 +1155,7 @@ export const CoursesPage: React.FC = () => {
   // ==========================================================
 
   return (
-    <div className="space-y-6">
+    <div className="lms-courses-page mx-auto w-full max-w-[1440px] space-y-7">
 
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1237,13 +1237,13 @@ export const CoursesPage: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 2xl:grid-cols-3">
 
           {filteredCourses.map(
             (course) => (
               <div
                 key={course.course_id}
-                className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className="lms-course-card group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg"
               >
 
                 {/* Thumbnail */}
@@ -1286,7 +1286,7 @@ export const CoursesPage: React.FC = () => {
                 </div>
 
                 {/* Content */}
-                <div className="flex flex-1 flex-col p-5">
+                <div className="flex flex-1 flex-col p-5 sm:p-6">
 
                   {/* Course information */}
                   <div className="mb-3 flex items-center gap-2 text-xs text-slate-500">

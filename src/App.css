@@ -1,2 +1,132 @@
-/* Global LMS Styles */
+/* ============================================
+   LMS GLOBAL LAYOUT
+   ============================================ */
 
+html,
+body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* ============================================
+   PAGE CONTAINERS — consistent spacing
+   ============================================ */
+
+.lms-dashboard-page,
+.lms-courses-page,
+.lms-course-details-page,
+.lms-my-learning-page,
+.lms-profile-page {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .lms-dashboard-page,
+  .lms-courses-page,
+  .lms-course-details-page,
+  .lms-my-learning-page,
+  .lms-profile-page {
+    gap: 1.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lms-dashboard-page,
+  .lms-courses-page,
+  .lms-course-details-page,
+  .lms-my-learning-page,
+  .lms-profile-page {
+    gap: 2rem;
+  }
+}
+
+/* ============================================
+   HEADINGS
+   ============================================ */
+
+.lms-dashboard-page h1,
+.lms-courses-page h1,
+.lms-course-details-page h1,
+.lms-my-learning-page h1,
+.lms-profile-page h1 {
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
+/* ============================================
+   STATS & COURSE CARDS
+   ============================================ */
+
+.lms-stat-card,
+.lms-course-card {
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lms-course-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.lms-course-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+/* ============================================
+   INPUTS
+   ============================================ */
+
+.lms-courses-page input,
+.lms-courses-page select {
+  min-width: 0;
+  width: 100%;
+}
+
+/* ============================================
+   COURSE PLAYER
+   ============================================ */
+
+.lms-course-player-page {
+  width: 100%;
+  max-width: 1100px;
+  margin-inline: auto;
+}
+
+/* ============================================
+   MOBILE FIXES
+   ============================================ */
+
+@media (max-width: 639px) {
+  .lms-dashboard-page,
+  .lms-courses-page,
+  .lms-course-details-page,
+  .lms-my-learning-page,
+  .lms-profile-page {
+    gap: 1.25rem;
+  }
+}
+
+/* ============================================
+   SAFE AREA (iPhone notch)
+   ============================================ */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

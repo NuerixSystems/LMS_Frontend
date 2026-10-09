@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Top face (cyan) -->
+  <path d="M50 10 L85 30 L50 50 L15 30 Z" fill="#5EEAD4"/>
+  <!-- Left face (dark blue) -->
+  <path d="M15 30 L50 50 L50 90 L15 70 Z" fill="#3730A3"/>
+  <!-- Right face (purple) -->
+  <path d="M85 30 L50 50 L50 90 L85 70 Z" fill="#4F46E5"/>
+  <!-- Lines on left face -->
+  <path d="M25 42 L42 51 M25 50 L42 59 M25 58 L42 67" 
+        stroke="#A5B4FC" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Play triangle on right face -->
+  <path d="M62 52 L62 70 L76 61 Z" fill="#FFFFFF"/>
+</svg>
