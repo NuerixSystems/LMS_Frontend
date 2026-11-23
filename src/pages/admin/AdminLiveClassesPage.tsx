@@ -1089,7 +1089,7 @@ export const AdminLiveClassesPage: React.FC = () => {
                           </Badge>
 
                           {isDeleted && (
-                            <Badge variant="destructive">
+                            <Badge variant="warning">
                               deleted
                             </Badge>
                           )}
