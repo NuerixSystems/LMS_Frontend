@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -14,39 +15,29 @@ import { useAuth } from "../../context/AuthContext";
 import type { User } from "../../types";
 import { API_URL } from "../../config";
 
-/**
- * =========================================================
- * GOOGLE PROFILE DECODER
- * =========================================================
- *
- * Google returns a JWT credential.
- * This function only decodes the payload so we can read
- * basic profile information on the frontend.
- *
- * The backend remains responsible for validating the
- * Google credential.
- */
+const ADMIN_ROLES = [
+  "admin",
+  "administrator",
+  "superadmin",
+  "super_admin",
+  "owner",
+];
+
 const getGoogleProfile = (
   credential: string
-): Record<string, unknown> => {
+): Record<string, any> => {
   try {
     const parts = credential.split(".");
 
-    if (parts.length < 2) {
-      return {};
-    }
+    if (parts.length < 2) return {};
 
-    const payload = parts[1];
-
-    const normalizedPayload = payload
+    const payload = parts[1]
       .replace(/-/g, "+")
       .replace(/_/g, "/");
 
     const paddedPayload =
-      normalizedPayload +
-      "=".repeat(
-        (4 - (normalizedPayload.length % 4)) % 4
-      );
+      payload +
+      "=".repeat((4 - (payload.length % 4)) % 4);
 
     const binary = window.atob(paddedPayload);
 
@@ -57,7 +48,7 @@ const getGoogleProfile = (
 
     return JSON.parse(
       new TextDecoder().decode(bytes)
-    ) as Record<string, unknown>;
+    );
   } catch (error) {
     console.error(
       "Unable to decode Google credential:",
@@ -68,47 +59,42 @@ const getGoogleProfile = (
   }
 };
 
-/**
- * =========================================================
- * LOGIN PAGE
- * =========================================================
- */
+const readResponse = async (response: Response) => {
+  const contentType =
+    response.headers.get("content-type") || "";
+
+  if (contentType.toLowerCase().includes("application/json")) {
+    try {
+      return await response.json();
+    } catch {
+      return {};
+    }
+  }
+
+  const text = await response.text();
+
+  return { detail: text };
+};
+
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
 
-  const {
-    completeGoogleLogin,
-  } = useAuth();
+  const { completeGoogleLogin } = useAuth();
 
-  const [isLoading, setIsLoading] =
-    useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const [error, setError] =
-    useState("");
-
-  /**
-   * =======================================================
-   * GOOGLE LOGIN
-   * =======================================================
-   */
   const handleGoogleLogin = async (
     credentialResponse: CredentialResponse
   ) => {
-    /**
-     * Prevent duplicate requests.
-     */
-    if (isLoading) {
-      return;
-    }
+    if (isLoading) return;
 
-    /**
-     * Google did not return a credential.
-     */
-    if (!credentialResponse.credential) {
+    const credential = credentialResponse.credential;
+
+    if (!credential) {
       setError(
         "Google authentication failed. Please try again."
       );
-
       return;
     }
 
@@ -116,253 +102,215 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      /**
-       * ===================================================
-       * BACKEND REQUEST
-       * ===================================================
-       *
-       * The API host comes from the shared frontend configuration.
-       */
-      const response = await fetch(
+      // -----------------------------------------------
+      // STEP 1: Authenticate with LMS.
+      // -----------------------------------------------
+      const lmsResponse = await fetch(
         `${API_URL}/api/lms/auth/google`,
         {
           method: "POST",
-
           headers: {
-            "Content-Type":
-              "application/json",
-
-            Accept:
-              "application/json",
+            "Content-Type": "application/json",
+            Accept: "application/json",
           },
-
-          body: JSON.stringify({
-            credential:
-              credentialResponse.credential,
-          }),
+          body: JSON.stringify({ credential }),
         }
       );
 
-      /**
-       * ===================================================
-       * READ RESPONSE SAFELY
-       * ===================================================
-       */
-      let data: any = {};
-
-      const contentType =
-        response.headers.get(
-          "content-type"
-        ) || "";
-
-      if (
-        contentType
-          .toLowerCase()
-          .includes("application/json")
-      ) {
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-      } else {
-        const text =
-          await response.text();
-
-        data = {
-          detail: text,
-        };
-      }
+      const lmsData = await readResponse(lmsResponse);
 
       console.log(
-        "LMS Google Login Response:",
-        response.status,
-        data
+        "LMS Google Login Status:",
+        lmsResponse.status
       );
 
-      /**
-       * ===================================================
-       * API ERROR
-       * ===================================================
-       */
-      if (!response.ok) {
+      if (!lmsResponse.ok) {
         throw new Error(
-          data?.detail ||
-            data?.message ||
-            `Google login failed (${response.status}).`
+          lmsData?.detail ||
+            lmsData?.message ||
+            `LMS Google login failed (${lmsResponse.status}).`
         );
       }
 
-      /**
-       * ===================================================
-       * ACCESS TOKEN
-       * ===================================================
-       */
-      const accessToken =
-        data?.access_token;
+      const lmsToken = lmsData?.access_token;
 
-      if (!accessToken) {
+      if (!lmsToken) {
         throw new Error(
-          "Login successful, but the LMS server did not return an access token."
+          "LMS server did not return an access token."
         );
       }
 
-      /**
-       * ===================================================
-       * GOOGLE / STUDENT PROFILE
-       * ===================================================
-       *
-       * Prefer the student object returned by the backend.
-       *
-       * If the backend does not return one, decode the
-       * Google credential as a fallback.
-       */
+      // -----------------------------------------------
+      // STEP 2: Get the Google/student profile.
+      // -----------------------------------------------
+      const googleProfile =
+        getGoogleProfile(credential);
+
       const profile =
-        data?.student ||
-        getGoogleProfile(
-          credentialResponse.credential
-        );
+        lmsData?.student || googleProfile;
 
-      /**
-       * ===================================================
-       * EMAIL
-       * ===================================================
-       */
-      const email =
-        typeof profile.email === "string"
-          ? profile.email
-          : "";
+      const email = String(
+        profile?.email ||
+          googleProfile?.email ||
+          ""
+      ).trim();
 
       if (!email) {
         throw new Error(
-          "Google login succeeded, but no student email was returned."
+          "Google login succeeded, but no email was returned."
         );
       }
 
-      /**
-       * ===================================================
-       * FRONTEND USER OBJECT
-       * ===================================================
-       */
+      // -----------------------------------------------
+      // STEP 3: Authenticate the same Google user with CRM.
+      // CRM login is optional for LMS student access.
+      // -----------------------------------------------
+      let crmAdminToken: string | null = null;
+      let isCrmAdmin = false;
+
+      try {
+        const crmResponse = await fetch(
+          `${API_URL}/api/google-signin`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({ credential }),
+          }
+        );
+
+        const crmData = await readResponse(crmResponse);
+
+        console.log(
+          "CRM Google Login Status:",
+          crmResponse.status
+        );
+
+        if (crmResponse.ok) {
+          const crmUser = crmData?.user;
+
+          const crmRole = String(
+            crmUser?.role || ""
+          )
+            .trim()
+            .toLowerCase();
+
+          const crmEmail = String(
+            crmUser?.emailid ||
+              crmUser?.email ||
+              crmData?.email ||
+              ""
+          )
+            .trim()
+            .toLowerCase();
+
+          const sameAccount =
+            crmEmail === email.toLowerCase();
+
+          const isAllowedAdminRole =
+            ADMIN_ROLES.includes(crmRole);
+
+          if (
+            sameAccount &&
+            isAllowedAdminRole &&
+            crmData?.access_token
+          ) {
+            crmAdminToken = crmData.access_token;
+            isCrmAdmin = true;
+          }
+        } else {
+          console.warn(
+            "CRM login unavailable. Continuing with LMS login.",
+            crmData?.detail || crmResponse.status
+          );
+        }
+      } catch (crmError) {
+        console.warn(
+          "CRM authentication failed. Continuing with LMS login.",
+          crmError
+        );
+      }
+
+      // -----------------------------------------------
+      // STEP 4: Build the frontend user.
+      // Admin role is granted only after CRM confirmation.
+      // -----------------------------------------------
       const googleUser: User = {
         id: String(
-          profile.id ??
-            profile.sub ??
+          profile?.id ??
+            profile?.student_id ??
+            profile?.sub ??
             email
         ),
 
         name:
-          typeof profile.name ===
-            "string" &&
-          profile.name.trim()
-            ? profile.name
-            : typeof profile.username ===
-                "string" &&
-              profile.username.trim()
-            ? profile.username
-            : email.split("@")[0],
+          profile?.name ||
+          profile?.username ||
+          googleProfile?.name ||
+          email.split("@")[0],
 
         email,
 
         avatar:
-          typeof profile.avatar ===
-              "string" &&
-            profile.avatar
-            ? profile.avatar
-            : typeof profile.picture ===
-                  "string" &&
-                profile.picture
-            ? profile.picture
-            : undefined,
+          profile?.avatar ||
+          profile?.picture ||
+          googleProfile?.picture ||
+          undefined,
 
-        role: "student",
+        role: isCrmAdmin ? "admin" : "student",
 
         createdAt:
-          typeof profile.created_at ===
-              "string" &&
-            profile.created_at
-            ? profile.created_at
-            : new Date()
-                .toISOString()
-                .slice(0, 10),
+          profile?.created_at ||
+          new Date().toISOString().slice(0, 10),
       };
 
-      /**
-       * ===================================================
-       * SAVE AUTH STATE
-       * ===================================================
-       */
+      // -----------------------------------------------
+      // STEP 5: Save separate LMS and CRM tokens.
+      // -----------------------------------------------
       completeGoogleLogin(
         googleUser,
-        accessToken
+        lmsToken,
+        crmAdminToken
       );
 
-      /**
-       * ===================================================
-       * SAVE ACCESS TOKEN
-       * ===================================================
-       */
-      localStorage.setItem(
-        "access_token",
-        accessToken
-      );
-
+      // Maintain compatibility with existing LMS code.
+      localStorage.setItem("access_token", lmsToken);
       localStorage.setItem(
         "token_type",
-        data?.token_type || "bearer"
+        lmsData?.token_type || "bearer"
       );
-
-      /**
-       * ===================================================
-       * SAVE STUDENT PROFILE
-       * ===================================================
-       */
       localStorage.setItem(
         "student",
         JSON.stringify(profile)
       );
+      localStorage.setItem("user_type", "student");
+      localStorage.setItem("lms_logged_in", "true");
 
-      localStorage.setItem(
-        "user_type",
-        "student"
+      console.log(
+        "CourseBox login completed:",
+        isCrmAdmin ? "CRM Admin + LMS" : "LMS Student"
       );
 
-      localStorage.setItem(
-        "lms_logged_in",
-        "true"
+      // -----------------------------------------------
+      // STEP 6: Navigate after login.
+      // -----------------------------------------------
+      navigate(
+        isCrmAdmin ? "/admin/live-classes" : "/dashboard",
+        { replace: true }
       );
-
-      /**
-       * ===================================================
-       * LOGIN SUCCESS
-       * ===================================================
-       */
-      navigate("/dashboard", {
-        replace: true,
-      });
     } catch (err: unknown) {
-      console.error(
-        "LMS Google login error:",
-        err
-      );
+      console.error("Google login error:", err);
 
-      /**
-       * ===================================================
-       * NETWORK ERROR
-       * ===================================================
-       */
       if (
         err instanceof TypeError &&
-        err.message
-          ?.toLowerCase()
-          .includes("fetch")
+        err.message.toLowerCase().includes("fetch")
       ) {
         setError(
-          "Unable to connect to the LMS server. Please check your internet connection and backend server."
+          "Unable to connect to the server. Please check your internet connection and backend server."
         );
-      } else if (
-        err instanceof Error
-      ) {
+      } else if (err instanceof Error) {
         setError(err.message);
       } else {
         setError(
@@ -374,15 +322,8 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  /**
-   * =======================================================
-   * GOOGLE LOGIN ERROR
-   * =======================================================
-   */
   const handleGoogleError = () => {
-    console.error(
-      "Google Sign-In failed"
-    );
+    console.error("Google Sign-In failed");
 
     setError(
       "Google Sign-In was unsuccessful. Please try again."
@@ -391,16 +332,8 @@ export const LoginPage: React.FC = () => {
     setIsLoading(false);
   };
 
-  /**
-   * =======================================================
-   * UI
-   * =======================================================
-   */
   return (
     <main className="flex min-h-screen flex-col justify-center bg-slate-50 py-12 sm:px-6 lg:px-8">
-      {/* ===================================================
-          LOGO + HEADING
-          =================================================== */}
       <div className="text-center sm:mx-auto sm:w-full sm:max-w-md">
         <Link
           to="/"
@@ -410,9 +343,7 @@ export const LoginPage: React.FC = () => {
             <Sparkles className="h-6 w-6" />
           </div>
 
-          <span>
-            coursebox
-          </span>
+          <span>coursebox</span>
         </Link>
 
         <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
@@ -420,20 +351,12 @@ export const LoginPage: React.FC = () => {
         </h1>
 
         <p className="mt-2 text-sm text-slate-600">
-          Sign in to continue your learning
-          journey
+          Sign in to continue your learning journey
         </p>
       </div>
 
-      {/* ===================================================
-          LOGIN CARD
-          =================================================== */}
       <div className="mt-8 px-4 sm:mx-auto sm:w-full sm:max-w-md sm:px-0">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-
-          {/* =================================================
-              ERROR MESSAGE
-              ================================================= */}
           {error && (
             <div
               role="alert"
@@ -443,9 +366,6 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          {/* =================================================
-              GOOGLE LOGIN
-              ================================================= */}
           <div className="flex flex-col items-center">
             <div className="mb-6 text-center">
               <h2 className="text-lg font-semibold text-slate-900">
@@ -453,8 +373,7 @@ export const LoginPage: React.FC = () => {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Use your Gmail account to access
-                your courses
+                Use your Gmail account to access your courses
               </p>
             </div>
 
@@ -469,12 +388,8 @@ export const LoginPage: React.FC = () => {
             ) : (
               <div className="flex w-full justify-center">
                 <GoogleLogin
-                  onSuccess={
-                    handleGoogleLogin
-                  }
-                  onError={
-                    handleGoogleError
-                  }
+                  onSuccess={handleGoogleLogin}
+                  onError={handleGoogleError}
                   theme="outline"
                   size="large"
                   text="continue_with"
@@ -487,20 +402,13 @@ export const LoginPage: React.FC = () => {
             )}
           </div>
 
-          {/* =================================================
-              SECURITY INFORMATION
-              ================================================= */}
           <div className="mt-6 rounded-lg bg-slate-50 p-4 text-center">
             <p className="text-xs leading-5 text-slate-500">
-              Your Google account is used to
-              securely identify your coursebox
-              student account.
+              Your Google account is used to securely identify
+              your CourseBox account.
             </p>
           </div>
 
-          {/* =================================================
-              REGISTER
-              ================================================= */}
           <div className="mt-6 text-center text-sm text-slate-500">
             Don't have an account?{" "}
 
@@ -513,16 +421,12 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* =================================================
-            BACK HOME
-            ================================================= */}
         <div className="mt-6 text-center">
           <Link
             to="/"
             className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-indigo-600"
           >
             Back to home
-
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

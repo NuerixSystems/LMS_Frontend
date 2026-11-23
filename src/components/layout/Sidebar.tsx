@@ -5,6 +5,8 @@ import {
   BookOpen,
   LogOut,
   Sparkles,
+  Video,
+  CalendarCog,
   X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -24,6 +26,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/courses", label: "Courses", icon: BookOpen },
+    { to: "/live-classes", label: "Live Classes", icon: Video },
+    ...(user?.role?.toLowerCase() === "admin"
+      ? [{ to: "/admin/live-classes", label: "Manage Live Sessions", icon: CalendarCog }]
+      : []),
   ];
 
   const handleLogout = () => {

@@ -1,52 +1,147 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+} from "react";
+
 import type { User, AuthState } from "../types";
 import { initialUser } from "../data/mockCourses";
 import { apiService } from "../services/api";
 
 interface AuthContextType extends AuthState {
   token: string | null;
-  completeGoogleLogin: (user: User, accessToken: string) => void;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  adminToken: string | null;
+
+  completeGoogleLogin: (
+    user: User,
+    accessToken: string,
+    crmAdminToken?: string | null
+  ) => void;
+
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
+
+  register: (
+    name: string,
+    email: string,
+    password: string
+  ) => Promise<{ success: boolean; error?: string }>;
+
   logout: () => void;
-  resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
-  updateProfile: (data: Partial<Pick<User, "name" | "email" | "bio" | "avatar">>) => void;
-  changePassword: (oldPassword: string, newPassword: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
+
+  resetPassword: (
+    email: string
+  ) => Promise<{ success: boolean; message: string }>;
+
+  updateProfile: (
+    data: Partial<Pick<User, "name" | "email" | "bio" | "avatar">>
+  ) => void;
+
+  changePassword: (
+    oldPassword: string,
+    newPassword: string,
+    confirmPassword: string
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
 
 const AUTH_STORAGE_KEY = "lms_auth_user";
 const AUTH_TOKEN_KEY = "lms_auth_token";
+const ADMIN_TOKEN_KEY = "crm_admin_token";
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const getUserName = (profile: any, email: string): string => {
+  return (
+    profile?.username ||
+    profile?.name ||
+    profile?.firstname ||
+    profile?.user?.username ||
+    profile?.user?.name ||
+    email
+      .split("@")[0]
+      .replace(/[._]/g, " ")
+      .replace(/\b\w/g, (c: string) => c.toUpperCase())
+  );
+};
+
+export const AuthProvider: React.FC<{
+  children: React.ReactNode;
+}> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [adminToken, setAdminToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Restore authentication when the application loads.
   useEffect(() => {
     try {
       const stored = localStorage.getItem(AUTH_STORAGE_KEY);
       const storedToken = localStorage.getItem(AUTH_TOKEN_KEY);
-      if (stored) {
+      const storedAdminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
+
+      if (stored && storedToken) {
         const storedUser = JSON.parse(stored) as User;
-        if (storedUser.id === initialUser.id && storedUser.email === initialUser.email) {
+
+        if (
+          storedUser.id === initialUser.id &&
+          storedUser.email === initialUser.email
+        ) {
           localStorage.removeItem(AUTH_STORAGE_KEY);
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+          localStorage.removeItem(ADMIN_TOKEN_KEY);
         } else {
-          setUser(storedUser);
+          // Admin role is retained only when a CRM token exists.
+          const restoredUser: User = {
+            ...storedUser,
+            role:
+              storedAdminToken && storedUser.role === "admin"
+                ? "admin"
+                : "student",
+          };
+
+          setUser(restoredUser);
+          setToken(storedToken);
+          setAdminToken(
+            restoredUser.role === "admin"
+              ? storedAdminToken
+              : null
+          );
+
+          if (restoredUser.role !== "admin") {
+            localStorage.removeItem(ADMIN_TOKEN_KEY);
+            localStorage.setItem(
+              AUTH_STORAGE_KEY,
+              JSON.stringify(restoredUser)
+            );
+          }
         }
+      } else {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(ADMIN_TOKEN_KEY);
       }
-      if (storedToken) {
-        setToken(storedToken);
-      }
-    } catch (e) {
-      console.error("Failed to load user from localStorage", e);
+    } catch (error) {
+      console.error(
+        "Failed to restore authentication:",
+        error
+      );
+
       localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  // Email/password LMS login.
   const login = async (
     email: string,
     password: string,
@@ -54,61 +149,87 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
 
-    // 1. Try real backend login
     try {
+      setUser(null);
+      setToken(null);
+      setAdminToken(null);
+
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+
       const data = await apiService.login(email, password);
       const accessToken = data.access_token;
-      setToken(accessToken);
-      if (rememberMe) {
-        localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+
+      if (!accessToken) {
+        throw new Error(
+          "Backend did not return an access token."
+        );
       }
 
-      // Try fetching profile from backend if supported
-      let userName = email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      try {
-        const profile = await apiService.getProfile(accessToken);
-        if (profile?.username || profile?.name) {
-          userName = profile.username || profile.name;
-        }
-      } catch (profileErr) {
-        console.warn("Could not fetch remote profile, using email identity", profileErr);
-      }
+      const profile = await apiService.getProfile(accessToken);
+      console.log("LMS PROFILE RESPONSE:", profile);
 
+      const userName = getUserName(profile, email);
+
+      // LMS authentication alone does not grant CRM admin access.
       const remoteUser: User = {
-        id: "user-" + Date.now(),
+        id: String(
+          profile?.id ??
+            profile?.user_id ??
+            profile?.user?.id ??
+            email
+        ),
         name: userName,
-        email,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
+        email: profile?.email || profile?.emailid || email,
+        avatar:
+          profile?.avatar ||
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+            email
+          )}`,
         role: "student",
-        bio: "Learning on coursebox with a connected FastAPI backend.",
-        createdAt: new Date().toISOString().split("T")[0],
+        bio: profile?.bio || "Learning on CourseBox.",
+        createdAt:
+          profile?.createdAt ||
+          new Date().toISOString().split("T")[0],
       };
 
+      setToken(accessToken);
       setUser(remoteUser);
+
       if (rememberMe) {
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(remoteUser));
+        localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+        localStorage.setItem(
+          AUTH_STORAGE_KEY,
+          JSON.stringify(remoteUser)
+        );
       }
+
       setIsLoading(false);
       return { success: true };
-    } catch (err: any) {
-      console.warn("Backend login failed or unavailable:", err.message);
+    } catch (error: any) {
+      console.error("Login failed:", error);
 
-      // Fallback for pre-seeded demo user
-      if (email === "alex.morgan@example.com" && password.length >= 6) {
-        setUser(initialUser);
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(initialUser));
-        setIsLoading(false);
-        return { success: true };
-      }
+      setUser(null);
+      setToken(null);
+      setAdminToken(null);
+
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
 
       setIsLoading(false);
+
       return {
         success: false,
-        error: err.message || "Failed to log in. Please check your credentials.",
+        error:
+          error?.message ||
+          "Login failed. Please check your email and password.",
       };
     }
   };
 
+  // Student registration.
   const register = async (
     name: string,
     email: string,
@@ -117,55 +238,106 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
 
     try {
-      // 1. Register on real backend
+      setUser(null);
+      setToken(null);
+      setAdminToken(null);
+
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+
       await apiService.signup(name, email, password);
 
-      // 2. Automatically log in to obtain JWT token
       const loginRes = await apiService.login(email, password);
       const accessToken = loginRes.access_token;
-      setToken(accessToken);
-      localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+
+      if (!accessToken) {
+        throw new Error(
+          "Registration login did not return a token."
+        );
+      }
 
       const registeredUser: User = {
         id: "user-" + Date.now(),
         name,
         email,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+          name
+        )}`,
         role: "student",
-        bio: "Newly registered student on coursebox.",
+        bio: "Newly registered student on CourseBox.",
         createdAt: new Date().toISOString().split("T")[0],
       };
 
+      setToken(accessToken);
       setUser(registeredUser);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(registeredUser));
+
+      localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+      localStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify(registeredUser)
+      );
+
       setIsLoading(false);
       return { success: true };
-    } catch (err: any) {
-      console.warn("Backend signup failed, falling back to local registration:", err.message);
+    } catch (error: any) {
+      console.error("Registration failed:", error);
 
-      // Graceful local account creation if backend is warming up or returns error
-      const newUser: User = {
-        id: "user-" + Date.now(),
-        name,
-        email,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
-        role: "student",
-        bio: "Newly registered student.",
-        createdAt: new Date().toISOString().split("T")[0],
+      setIsLoading(false);
+
+      return {
+        success: false,
+        error: error?.message || "Registration failed.",
       };
-
-      setUser(newUser);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newUser));
-      setIsLoading(false);
-      return { success: true };
     }
   };
 
+  // Complete Google LMS + optional CRM authentication.
+  const completeGoogleLogin = (
+    googleUser: User,
+    accessToken: string,
+    crmAdminToken?: string | null
+  ) => {
+    const isAdmin = Boolean(
+      crmAdminToken && googleUser.role === "admin"
+    );
+
+    const finalUser: User = {
+      ...googleUser,
+      role: isAdmin ? "admin" : "student",
+    };
+
+    setUser(finalUser);
+    setToken(accessToken);
+    setAdminToken(isAdmin ? crmAdminToken! : null);
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify(finalUser)
+    );
+
+    localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+
+    if (isAdmin) {
+      localStorage.setItem(
+        ADMIN_TOKEN_KEY,
+        crmAdminToken!
+      );
+    } else {
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+    }
+  };
+
+  // Logout from both LMS and CRM sessions.
   const logout = () => {
     setUser(null);
     setToken(null);
+    setAdminToken(null);
+
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_TOKEN_KEY);
+
     localStorage.removeItem("access_token");
     localStorage.removeItem("token_type");
     localStorage.removeItem("student");
@@ -173,34 +345,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem("lms_logged_in");
   };
 
-  const completeGoogleLogin = (googleUser: User, accessToken: string) => {
-    setUser(googleUser);
-    setToken(accessToken);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(googleUser));
-    localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
-    localStorage.setItem("access_token", accessToken);
-  };
-
-  const resetPassword = async (email: string): Promise<{ success: boolean; message: string }> => {
+  const resetPassword = async (
+    email: string
+  ): Promise<{ success: boolean; message: string }> => {
     try {
-      const res = await apiService.forgotPassword(email);
+      const response = await apiService.forgotPassword(email);
+
       return {
         success: true,
-        message: res.message || `If an account with ${email} exists, a password reset link has been sent.`,
+        message:
+          response.message ||
+          "If this account exists, password reset instructions have been sent.",
       };
-    } catch (err: any) {
+    } catch (error) {
+      console.error("Password reset error:", error);
+
       return {
-        success: true, // Still show user-friendly confirmation
-        message: `If an account with ${email} exists, a password reset instructions have been sent.`,
+        success: true,
+        message:
+          "If this account exists, password reset instructions have been sent.",
       };
     }
   };
 
-  const updateProfile = (data: Partial<Pick<User, "name" | "email" | "bio" | "avatar">>) => {
+  const updateProfile = (
+    data: Partial<Pick<User, "name" | "email" | "bio" | "avatar">>
+  ) => {
     if (!user) return;
-    const updated = { ...user, ...data };
-    setUser(updated);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
+
+    const updatedUser = { ...user, ...data };
+
+    setUser(updatedUser);
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify(updatedUser)
+    );
   };
 
   const changePassword = async (
@@ -208,15 +388,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     newPassword: string,
     confirmPassword: string
   ): Promise<{ success: boolean; error?: string }> => {
-    if (token) {
-      try {
-        await apiService.changePassword(token, oldPassword, newPassword, confirmPassword);
-        return { success: true };
-      } catch (err: any) {
-        return { success: false, error: err.message };
-      }
+    if (!token) {
+      return {
+        success: false,
+        error: "Please log in again.",
+      };
     }
-    return { success: true };
+
+    try {
+      await apiService.changePassword(
+        token,
+        oldPassword,
+        newPassword,
+        confirmPassword
+      );
+
+      return { success: true };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message || "Password change failed.",
+      };
+    }
   };
 
   return (
@@ -224,6 +417,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         token,
+        adminToken,
         isAuthenticated: !!user,
         isLoading,
         completeGoogleLogin,
@@ -242,8 +436,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
+
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error(
+      "useAuth must be used within an AuthProvider"
+    );
   }
+
   return context;
 };

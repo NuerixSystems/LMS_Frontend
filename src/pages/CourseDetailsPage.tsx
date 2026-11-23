@@ -16,6 +16,7 @@ import { useLMS } from "../context/LMSContext";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Progress } from "../components/ui/progress";
+import { LiveClassList } from "../components/live/LiveClassList";
 
 export const CourseDetailsPage: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
@@ -186,6 +187,8 @@ export const CourseDetailsPage: React.FC = () => {
       </div>
 
       {/* Curriculum Section */}
+      <LiveClassList courseId={course.id} title="Live Classes" hideWhenEmpty />
+
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <div>
