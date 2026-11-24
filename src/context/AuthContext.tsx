@@ -57,6 +57,66 @@ const AUTH_STORAGE_KEY = "lms_auth_user";
 const AUTH_TOKEN_KEY = "lms_auth_token";
 const ADMIN_TOKEN_KEY = "crm_admin_token";
 
+const normalizeRole = (value: unknown): string => {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+};
+
+const isAdminRole = (value: unknown): boolean => {
+  return [
+    "admin",
+    "superadmin",
+    "super_admin",
+    "administrator",
+  ].includes(normalizeRole(value));
+};
+
+// Read role from common backend profile response structures.
+const getProfileRole = (profile: any): string => {
+  const candidates = [
+    profile?.role,
+    profile?.user_role,
+    profile?.user_type,
+    profile?.account_type,
+    profile?.user?.role,
+    profile?.user?.user_role,
+    profile?.user?.user_type,
+    profile?.data?.role,
+    profile?.data?.user_role,
+    profile?.data?.user?.role,
+  ];
+
+  return candidates.find(
+    (value) => typeof value === "string" && value.trim()
+  ) || "student";
+};
+
+// Only use an admin token explicitly returned by the backend.
+const getCRMAdminToken = (
+  loginResponse: any,
+  profile: any
+): string | null => {
+  const candidates = [
+    loginResponse?.crm_admin_token,
+    loginResponse?.admin_token,
+    loginResponse?.data?.crm_admin_token,
+    loginResponse?.data?.admin_token,
+    loginResponse?.user?.crm_admin_token,
+    profile?.crm_admin_token,
+    profile?.admin_token,
+    profile?.data?.crm_admin_token,
+    profile?.user?.crm_admin_token,
+  ];
+
+  const value = candidates.find(
+    (item) => typeof item === "string" && item.trim()
+  );
+
+  return value || null;
+};
+
 const getUserName = (profile: any, email: string): string => {
   return (
     profile?.username ||
@@ -79,7 +139,7 @@ export const AuthProvider: React.FC<{
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore authentication when the application loads.
+  // Restore authentication when application loads.
   useEffect(() => {
     try {
       const stored = localStorage.getItem(AUTH_STORAGE_KEY);
@@ -97,25 +157,26 @@ export const AuthProvider: React.FC<{
           localStorage.removeItem(AUTH_TOKEN_KEY);
           localStorage.removeItem(ADMIN_TOKEN_KEY);
         } else {
-          // Admin role is retained only when a CRM token exists.
           const restoredUser: User = {
             ...storedUser,
             role:
-              storedAdminToken && storedUser.role === "admin"
+              storedAdminToken && isAdminRole(storedUser.role)
                 ? "admin"
                 : "student",
           };
 
           setUser(restoredUser);
           setToken(storedToken);
-          setAdminToken(
-            restoredUser.role === "admin"
-              ? storedAdminToken
-              : null
-          );
 
-          if (restoredUser.role !== "admin") {
+          if (
+            storedAdminToken &&
+            isAdminRole(storedUser.role)
+          ) {
+            setAdminToken(storedAdminToken);
+          } else {
+            setAdminToken(null);
             localStorage.removeItem(ADMIN_TOKEN_KEY);
+
             localStorage.setItem(
               AUTH_STORAGE_KEY,
               JSON.stringify(restoredUser)
@@ -128,10 +189,7 @@ export const AuthProvider: React.FC<{
         localStorage.removeItem(ADMIN_TOKEN_KEY);
       }
     } catch (error) {
-      console.error(
-        "Failed to restore authentication:",
-        error
-      );
+      console.error("Failed to restore authentication:", error);
 
       localStorage.removeItem(AUTH_STORAGE_KEY);
       localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -141,7 +199,7 @@ export const AuthProvider: React.FC<{
     }
   }, []);
 
-  // Email/password LMS login.
+  // Email/password login.
   const login = async (
     email: string,
     password: string,
@@ -168,11 +226,17 @@ export const AuthProvider: React.FC<{
       }
 
       const profile = await apiService.getProfile(accessToken);
+
       console.log("LMS PROFILE RESPONSE:", profile);
+
+      const backendRole = getProfileRole(profile);
+      const crmAdminToken = getCRMAdminToken(data, profile);
+
+      const adminAccess =
+        isAdminRole(backendRole) && Boolean(crmAdminToken);
 
       const userName = getUserName(profile, email);
 
-      // LMS authentication alone does not grant CRM admin access.
       const remoteUser: User = {
         id: String(
           profile?.id ??
@@ -187,7 +251,7 @@ export const AuthProvider: React.FC<{
           `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
             email
           )}`,
-        role: "student",
+        role: adminAccess ? "admin" : "student",
         bio: profile?.bio || "Learning on CourseBox.",
         createdAt:
           profile?.createdAt ||
@@ -196,16 +260,26 @@ export const AuthProvider: React.FC<{
 
       setToken(accessToken);
       setUser(remoteUser);
+      setAdminToken(adminAccess ? crmAdminToken : null);
 
       if (rememberMe) {
         localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+
         localStorage.setItem(
           AUTH_STORAGE_KEY,
           JSON.stringify(remoteUser)
         );
+
+        if (adminAccess && crmAdminToken) {
+          localStorage.setItem(
+            ADMIN_TOKEN_KEY,
+            crmAdminToken
+          );
+        }
       }
 
       setIsLoading(false);
+
       return { success: true };
     } catch (error: any) {
       console.error("Login failed:", error);
@@ -271,14 +345,17 @@ export const AuthProvider: React.FC<{
 
       setToken(accessToken);
       setUser(registeredUser);
+      setAdminToken(null);
 
       localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+
       localStorage.setItem(
         AUTH_STORAGE_KEY,
         JSON.stringify(registeredUser)
       );
 
       setIsLoading(false);
+
       return { success: true };
     } catch (error: any) {
       console.error("Registration failed:", error);
@@ -298,18 +375,17 @@ export const AuthProvider: React.FC<{
     accessToken: string,
     crmAdminToken?: string | null
   ) => {
-    const isAdmin = Boolean(
-      crmAdminToken && googleUser.role === "admin"
-    );
+    const adminAccess =
+      isAdminRole(googleUser.role) && Boolean(crmAdminToken);
 
     const finalUser: User = {
       ...googleUser,
-      role: isAdmin ? "admin" : "student",
+      role: adminAccess ? "admin" : "student",
     };
 
     setUser(finalUser);
     setToken(accessToken);
-    setAdminToken(isAdmin ? crmAdminToken! : null);
+    setAdminToken(adminAccess ? crmAdminToken! : null);
 
     localStorage.setItem(
       AUTH_STORAGE_KEY,
@@ -318,17 +394,17 @@ export const AuthProvider: React.FC<{
 
     localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
 
-    if (isAdmin) {
+    if (adminAccess && crmAdminToken) {
       localStorage.setItem(
         ADMIN_TOKEN_KEY,
-        crmAdminToken!
+        crmAdminToken
       );
     } else {
       localStorage.removeItem(ADMIN_TOKEN_KEY);
     }
   };
 
-  // Logout from both LMS and CRM sessions.
+  // Logout from LMS and CRM sessions.
   const logout = () => {
     setUser(null);
     setToken(null);
